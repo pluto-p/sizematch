@@ -1,0 +1,14 @@
+# Ignore all node_modules folders anywhere
+**/node_modules/
+
+# Ignore all .env files anywhere
+**/.env
+
+# Ignore Next.js build output folder inside frontend
+frontend/.next/
+
+# Ignore any dist folders anywhere
+**/dist/
+
+# macOS system files
+.DS_Store
