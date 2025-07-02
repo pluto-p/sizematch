@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog"
 import type { Garment } from "./sizing-popup"
 import { Plus, Search } from "lucide-react"
 import { AddReferenceForm } from "./add-reference-form"
@@ -120,6 +120,7 @@ export function PurchaseHistory({
           </Button>
         </DialogTrigger>
         <DialogContent className="max-w-2xl">
+          <DialogTitle>Add Reference Garment</DialogTitle>
           <AddReferenceForm onSubmit={handleAddManualGarment} onCancel={() => setShowAddForm(false)} />
         </DialogContent>
       </Dialog>

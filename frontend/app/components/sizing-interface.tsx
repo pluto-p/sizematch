@@ -127,7 +127,7 @@ export function SizingInterface({ user, currentUrl, onLogout }: SizingInterfaceP
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col max-w-[90vw] mx-auto">
         {/* Header */}
         <div className="p-6 border-b bg-white">
           <h2 className="text-2xl font-bold text-gray-900">RunwAI</h2>
@@ -146,7 +146,7 @@ export function SizingInterface({ user, currentUrl, onLogout }: SizingInterfaceP
           ) : (
             <div className="space-y-6">
               {/* Target Garment Section */}
-              <Card>
+              <Card className="max-w-[80vw] mx-auto">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <span>Target Garment</span>

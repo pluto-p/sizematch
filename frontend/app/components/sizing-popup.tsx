@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { AuthScreen } from "./auth-screen"
 import { SizingInterface } from "./sizing-interface"
 import { X } from "lucide-react"
@@ -70,7 +70,8 @@ export function SizingPopup({ isOpen, onClose, currentUrl }: SizingPopupProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] p-0 overflow-hidden">
+      <DialogContent className="p-0 overflow-hidden">
+        <DialogTitle>Sizing Popup</DialogTitle>
         <div className="flex h-[80vh]">
           {/* Header */}
           <div className="absolute top-4 right-4 z-10">
