@@ -54,10 +54,10 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
   }
 
   return (
-    <div className="flex items-center justify-center w-full p-8">
+    <div className="flex items-center justify-center w-full h-full p-8 bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Welcome to Smart Sizing</CardTitle>
+          <CardTitle className="text-2xl">Welcome to RunwAI</CardTitle>
           <CardDescription>
             Sign in to access your purchase history and get personalized size recommendations
           </CardDescription>
@@ -73,7 +73,14 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
               <form onSubmit={handleEmailLogin} className="space-y-4">
                 <div>
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email"
+                    required
+                  />
                 </div>
                 <div>
                   <Label htmlFor="password">Password</Label>
@@ -82,10 +89,11 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button type="submit" className="w-full bg-gray-900 hover:bg-gray-800" disabled={isLoading}>
                   {isLoading ? "Signing in..." : "Sign In"}
                 </Button>
               </form>
@@ -95,11 +103,24 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
               <form onSubmit={handleEmailLogin} className="space-y-4">
                 <div>
                   <Label htmlFor="name">Name</Label>
-                  <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Enter your full name"
+                    required
+                  />
                 </div>
                 <div>
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email"
+                    required
+                  />
                 </div>
                 <div>
                   <Label htmlFor="password">Password</Label>
@@ -108,10 +129,11 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Create a password"
                     required
                   />
                 </div>
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button type="submit" className="w-full bg-gray-900 hover:bg-gray-800" disabled={isLoading}>
                   {isLoading ? "Creating account..." : "Sign Up"}
                 </Button>
               </form>
@@ -128,10 +150,20 @@ export function AuthScreen({ onLogin }: AuthScreenProps) {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <Button variant="outline" onClick={() => handleOAuthLogin("google")} disabled={isLoading}>
+            <Button
+              variant="outline"
+              onClick={() => handleOAuthLogin("google")}
+              disabled={isLoading}
+              className="bg-transparent"
+            >
               Google
             </Button>
-            <Button variant="outline" onClick={() => handleOAuthLogin("facebook")} disabled={isLoading}>
+            <Button
+              variant="outline"
+              onClick={() => handleOAuthLogin("facebook")}
+              disabled={isLoading}
+              className="bg-transparent"
+            >
               Facebook
             </Button>
           </div>
