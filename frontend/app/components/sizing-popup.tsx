@@ -34,6 +34,7 @@ export type Garment = {
 export function SizingPopup({ isOpen, onClose, currentUrl }: SizingPopupProps) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(false) // Changed to false initially
+  const [isEmbedded, setIsEmbedded] = useState(false)
 
   useEffect(() => {
     // Check if user is already authenticated
@@ -57,6 +58,12 @@ export function SizingPopup({ isOpen, onClose, currentUrl }: SizingPopupProps) {
     }
   }, [isOpen])
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsEmbedded(window.parent !== window)
+    }
+  }, [])
+
   const handleLogin = (userData: User) => {
     setUser(userData)
     localStorage.setItem("sizing-user", JSON.stringify(userData))
@@ -68,9 +75,6 @@ export function SizingPopup({ isOpen, onClose, currentUrl }: SizingPopupProps) {
   }
 
   if (!isOpen) return null
-
-  // Check if we're in an iframe (embedded mode)
-  const isEmbedded = window.parent !== window
 
   if (isEmbedded) {
     // When embedded, render without Dialog wrapper for cleaner iframe display

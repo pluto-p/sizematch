@@ -55,36 +55,79 @@ This is a **Next.js application** with an **embeddable widget system** that can 
 - **Purpose**: Streamlined flow for adding garments to user's wardrobe
 - **Process**: URL input → scraping → size selection → fit rating → save
 
-## File Structure
+## Updated File Structure
 
-\`\`\`
+```
 /app
 ├── components/
 │   ├── auth-screen.tsx           # User authentication interface
 │   ├── sizing-popup.tsx          # Main popup container with state management
 │   ├── sizing-interface.tsx      # Core sizing interface with sidebar layout
-│   ├── purchase-history.tsx     # Wardrobe management and garment selection
-│   ├── add-reference-form.tsx   # Add new reference garments workflow
-│   ├── size-recommendation.tsx  # Size matching algorithm and results display
-│   └── size-selection-modal.tsx # Legacy component (can be removed)
+│   ├── purchase-history.tsx      # Wardrobe management and garment selection
+│   ├── add-reference-form.tsx    # Add new reference garments workflow
+│   ├── size-recommendation.tsx   # Size matching algorithm and results display
+│   ├── size-selection-modal.tsx  # Legacy component (can be removed)
+│   ├── enhanced-sizing-interface.tsx # Enhanced sizing interface
+│   ├── multiple-garment-selector.tsx # Multi-garment selection component
+│   ├── screenshot-upload.tsx     # Screenshot upload functionality
+│   ├── url-input.tsx             # URL input for garment scraping
 ├── utils/
-│   └── garment-detection.ts     # Web scraping and garment detection logic
+│   ├── garment-detection.ts      # Web scraping and garment detection logic
+│   └── garment-analyzer.ts       # Garment analysis utilities
 ├── actions/
-│   └── scrape-garment.ts        # Server action for garment scraping
+│   └── scrape-garment.ts         # Server action for garment scraping
 ├── api/
-│   └── analytics/route.ts       # Analytics endpoint for tracking
+│   ├── analytics/route.ts        # Analytics endpoint for tracking
+│   ├── garments/lookup/route.ts  # Garment lookup API
+│   ├── sessions/route.ts         # Session management API
+│   └── size-chart/analyze/route.ts # Size chart analysis API
 ├── widget/
-│   └── page.tsx                 # Iframe-embedded widget page
+│   └── page.tsx                  # Iframe-embedded widget page
 ├── embed/
-│   └── page.tsx                 # Integration documentation page
-├── page.tsx                     # Marketing homepage
-└── layout.tsx                   # Root layout
+│   └── page.tsx                  # Integration documentation page
+├── demo/
+│   └── page.tsx                  # Demo page for showcasing features
+├── page.tsx                      # Marketing homepage
+├── layout.tsx                    # Root layout
+├── favicon.ico                   # Favicon for the application
+├── globals.css                   # Global CSS styles
 
 /public
-├── embed.js                     # Main embeddable widget script
-├── embed-widget.js             # Alternative widget implementation
-└── integration-guide.html      # Integration documentation
-\`\`\`
+├── embed.js                      # Main embeddable widget script
+├── embed-widget.js               # Alternative widget implementation
+├── embed-improved.js             # Improved widget script
+├── integration-guide.html        # Integration documentation
+├── file.svg                      # Example SVG file
+├── globe.svg                     # Example SVG file
+├── next.svg                      # Example SVG file
+├── vercel.svg                    # Example SVG file
+├── window.svg                    # Example SVG file
+
+/lib
+├── utils.ts                      # Utility functions
+
+/components
+├── ui/
+│   ├── badge.tsx                 # Badge UI component
+│   ├── button.tsx                # Button UI component
+│   ├── card.tsx                  # Card UI component
+│   ├── dialog.tsx                # Dialog UI component
+│   ├── input.tsx                 # Input UI component
+│   ├── label.tsx                 # Label UI component
+│   ├── progress.tsx              # Progress UI component
+│   ├── select.tsx                # Select UI component
+│   └── tabs.tsx                  # Tabs UI component
+
+Other files:
+├── eslint.config.mjs             # ESLint configuration
+├── postcss.config.mjs            # PostCSS configuration
+├── tsconfig.json                 # TypeScript configuration
+├── next.config.ts                # Next.js configuration
+├── package.json                  # Project metadata and dependencies
+├── package-lock.json             # Dependency lock file
+```
+
+This updated structure reflects the current state of the project, including all files and directories.
 
 ## Key Features
 
