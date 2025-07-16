@@ -1,7 +1,9 @@
+"use client"
+
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "/components/ui/card"
-import { Badge } from "/components/ui/badge"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import { Loader2, Search, AlertCircle, RefreshCw, LogOut } from "lucide-react"
 import { PurchaseHistory } from "./purchase-history"
 import { SizeRecommendation } from "./size-recommendation"
@@ -15,11 +17,17 @@ interface EnhancedSizingInterfaceProps {
   user: User
   currentUrl: string
   onLogout: () => void
+  mockAnalysisResult?: AnalysisResult | AnalysisResult[] | null
 }
 
 type ViewState = "analyzing" | "multiple-garments" | "screenshot-upload" | "url-input" | "ready" | "error"
 
-export function EnhancedSizingInterface({ user, currentUrl, onLogout }: EnhancedSizingInterfaceProps) {
+export function EnhancedSizingInterface({
+  user,
+  currentUrl,
+  onLogout,
+  mockAnalysisResult,
+}: EnhancedSizingInterfaceProps) {
   const [viewState, setViewState] = useState<ViewState>("analyzing")
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([])
   const [selectedGarment, setSelectedGarment] = useState<AnalysisResult | null>(null)
@@ -33,13 +41,12 @@ export function EnhancedSizingInterface({ user, currentUrl, onLogout }: Enhanced
   const analyzer = new GarmentAnalyzer()
 
   useEffect(() => {
-    // Start analysis after a short delay to show the loading state
     const timer = setTimeout(() => {
       performAnalysis()
     }, 1000)
 
     return () => clearTimeout(timer)
-  }, [currentUrl])
+  }, [currentUrl, mockAnalysisResult])
 
   const performAnalysis = async (targetUrl?: string) => {
     setViewState("analyzing")
@@ -50,22 +57,37 @@ export function EnhancedSizingInterface({ user, currentUrl, onLogout }: Enhanced
       const urlToAnalyze = targetUrl || currentUrl
       console.log("[Enhanced Interface] Starting analysis for:", urlToAnalyze)
 
-      // Perform client-side analysis
-      const analysis = await analyzer.analyzeCurrentPage()
-      console.log("[Enhanced Interface] Analysis result:", analysis)
+      let analysis: AnalysisResult | AnalysisResult[] | null = null
 
-      // Check if we're on our own domain (no garment detected)
-      if (urlToAnalyze.includes(window.location.hostname) && analysis.confidence < 30) {
-        console.log("[Enhanced Interface] No garment detected on own domain")
+      if (mockAnalysisResult) {
+        console.log("[Enhanced Interface] Using mock analysis result:", mockAnalysisResult)
+        analysis = mockAnalysisResult
+      } else {
+        analysis = await analyzer.analyzeCurrentPage()
+        console.log("[Enhanced Interface] Live analysis result:", analysis)
+      }
+
+      if (!analysis) {
+        console.log("[Enhanced Interface] No analysis result, defaulting to URL input.")
         setViewState("url-input")
         return
       }
 
-      // For demo, simulate finding multiple garments sometimes
-      const multipleGarments = Math.random() > 0.8 // 20% chance of multiple garments
-      const results = multipleGarments
-        ? [analysis, { ...analysis, productId: analysis.productId + "_variant" }]
-        : [analysis]
+      let results: AnalysisResult[]
+      if (Array.isArray(analysis)) {
+        results = analysis
+      } else {
+        results = [analysis]
+      }
+
+      // This check is only for live analysis when no mock is provided
+      // and if the current URL is on the same domain as the app itself.
+      // If the confidence is low, it means it's likely not a product page.
+      if (!mockAnalysisResult && urlToAnalyze.includes(window.location.hostname) && results[0].confidence < 55) {
+        console.log("[Enhanced Interface] Low confidence on own domain (live analysis), defaulting to URL input.")
+        setViewState("url-input")
+        return
+      }
 
       setAnalysisResults(results)
 
@@ -87,10 +109,20 @@ export function EnhancedSizingInterface({ user, currentUrl, onLogout }: Enhanced
     if (garment.status === "complete") {
       setViewState("ready")
     } else if (garment.needsBackendLookup) {
+      // If it needs backend lookup, try that first.
       await performBackendLookup(garment)
-    } else if (garment.needsManualInput || !garment.sizing.sizeChart) {
+    } else if (garment.status === "partial" && !garment.sizing.sizeChart) {
+      // If it's partial (meaning garment info and sizes were found, but no size chart),
+      // and it didn't need backend lookup (or backend lookup failed, handled in performBackendLookup),
+      // then it's a good candidate for screenshot upload.
       setViewState("screenshot-upload")
+    } else if (garment.needsManualInput) {
+      // This case should primarily be hit by the initial analysis if it's very poor.
+      // If we're here after a manual URL submission, it means the submitted URL
+      // still couldn't be processed enough to even get to screenshot upload.
+      setViewState("url-input")
     } else {
+      // Fallback for any other partial state that might be considered "ready"
       setViewState("ready")
     }
   }
@@ -110,7 +142,6 @@ export function EnhancedSizingInterface({ user, currentUrl, onLogout }: Enhanced
       const result = await response.json()
 
       if (result.found && result.sizeChart) {
-        // Merge backend data with existing garment data
         const updatedGarment: AnalysisResult = {
           ...garment,
           sizing: {
@@ -164,10 +195,8 @@ export function EnhancedSizingInterface({ user, currentUrl, onLogout }: Enhanced
     try {
       console.log("[Enhanced Interface] Analyzing URL:", url)
 
-      // Mock analysis based on URL
       await new Promise((resolve) => setTimeout(resolve, 2000))
 
-      // Create mock garment based on URL
       let mockGarment: AnalysisResult
 
       if (url.toLowerCase().includes("levi")) {
@@ -192,6 +221,7 @@ export function EnhancedSizingInterface({ user, currentUrl, onLogout }: Enhanced
           productId: "levi.com_511-slim-jeans",
           confidence: 95,
           status: "complete",
+          needsManualInput: false, // Explicitly set to false as URL was manually provided
         }
       } else if (url.toLowerCase().includes("uniqlo")) {
         mockGarment = {
@@ -204,12 +234,12 @@ export function EnhancedSizingInterface({ user, currentUrl, onLogout }: Enhanced
           },
           sizing: {
             availableSizes: ["S", "M", "L", "XL"],
-            // No size chart - will need screenshot
+            sizeChart: undefined, // Explicitly undefined to trigger screenshot upload
           },
           productId: "uniqlo.com_slim-chinos",
           confidence: 80,
           status: "partial",
-          needsManualInput: true,
+          needsManualInput: false, // Explicitly set to false as URL was manually provided
         }
       } else {
         mockGarment = {
@@ -222,11 +252,12 @@ export function EnhancedSizingInterface({ user, currentUrl, onLogout }: Enhanced
           },
           sizing: {
             availableSizes: ["S", "M", "L", "XL"],
+            sizeChart: undefined, // Explicitly undefined to trigger screenshot upload
           },
           productId: "generic_garment",
           confidence: 60,
           status: "partial",
-          needsManualInput: true,
+          needsManualInput: false, // Explicitly set to false as URL was manually provided
         }
       }
 
@@ -248,7 +279,6 @@ export function EnhancedSizingInterface({ user, currentUrl, onLogout }: Enhanced
     setViewState("url-input")
   }
 
-  // Convert AnalysisResult to TargetGarment for SizeRecommendation
   const getTargetGarment = (analysis: AnalysisResult) => ({
     brand: analysis.garment.brand,
     name: analysis.garment.name,

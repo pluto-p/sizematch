@@ -8,8 +8,6 @@ export default function WidgetPage() {
   const [currentUrl, setCurrentUrl] = useState("")
 
   useEffect(() => {
-    if (typeof window === "undefined") return
-
     console.log("[Widget] Page loading...")
 
     // Get the URL from query params (passed from the embed script)
@@ -37,7 +35,7 @@ export default function WidgetPage() {
     }
 
     // Add message listener for parent communication
-    const handleMessage = (event: MessageEvent) => {
+    const handleMessage = (event) => {
       console.log("[Widget] Received message:", event.data)
       if (event.data.type === "RUNWAI_RESIZE") {
         // Handle resize requests from parent

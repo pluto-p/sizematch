@@ -1,6 +1,13 @@
 "use server"
 
-import type { GarmentData } from "../page"
+// Moved GarmentData type definition here as it's only used in this file now
+export type GarmentData = {
+  productName: string
+  brand: string
+  sizes: { [key: string]: string[] }
+  imageUrl?: string
+  price?: string
+}
 
 export async function scrapeGarmentData(url: string): Promise<GarmentData> {
   try {

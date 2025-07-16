@@ -1,28 +1,12 @@
-import type { TargetGarment } from "../components/sizing-interface"
+import type { TargetGarment } from "../components/sizing-popup" // Updated import path
 
 export async function detectGarmentFromPage(url: string): Promise<TargetGarment | null> {
   try {
     // In a real implementation, this would scrape the current page
     // For demo purposes, we'll simulate detection based on URL patterns
 
-    if (url.includes("localhost") || url.includes("demo")) {
-      // Return mock data for demo
-      return {
-        brand: "Levi's",
-        name: "501® Original Jeans",
-        category: "jeans",
-        gender: "men",
-        sizeChart: {
-          "28": { waist: 28, inseam: 32 },
-          "30": { waist: 30, inseam: 32 },
-          "32": { waist: 32, inseam: 32 },
-          "34": { waist: 34, inseam: 32 },
-          "36": { waist: 36, inseam: 32 },
-        },
-        imageUrl: "/placeholder.svg?height=200&width=200",
-        url,
-      }
-    }
+    // Removed localhost check as the /demo page is removed.
+    // The logic below will now apply to any URL not explicitly handled by the analyzer.
 
     // Check if we're on a known retailer site
     const knownRetailers = ["levi.com", "uniqlo.com", "hm.com", "zara.com", "gap.com"]

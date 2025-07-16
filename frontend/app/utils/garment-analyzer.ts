@@ -44,7 +44,7 @@ export class GarmentAnalyzer {
       sizing,
       productId,
       confidence,
-      status: "incomplete",
+      status: "incomplete", // Default status, will be updated by assessCompleteness
     }
 
     // Assess completeness
@@ -339,7 +339,7 @@ export class GarmentAnalyzer {
 
     // Garment info scoring
     if (garment.name && garment.name !== "Unknown Product") confidence += 30
-    if (garment.brand) confidence += 20
+    if (garment.brand && garment.brand !== "Unknown Brand") confidence += 20 // Only add if not default
     if (garment.price) confidence += 10
     if (garment.images.length > 0) confidence += 10
 
@@ -352,21 +352,40 @@ export class GarmentAnalyzer {
   }
 
   private assessCompleteness(analysis: AnalysisResult): Partial<AnalysisResult> {
-    const hasGarmentInfo = analysis.garment.name !== "Unknown Product" && analysis.garment.brand
+    const hasGarmentInfo = analysis.garment.name !== "Unknown Product" && analysis.garment.brand !== "Unknown Brand"
     const hasSizing = analysis.sizing.availableSizes.length > 0
     const hasMeasurements = analysis.sizing.sizeChart && Object.keys(analysis.sizing.sizeChart).length > 0
+
+    // If confidence is below a certain threshold, it's likely not a product page or a very poor scrape.
+    // In this case, always ask for manual URL input.
+    // A confidence of 50 means it found a name AND a brand. If it only found one, it's lower.
+    // Setting threshold to 55 means if it only found name+brand, it will go to URL input.
+    // If it found name+brand+price OR name+brand+image, it's 60, which is enough to proceed.
+    if (analysis.confidence < 55) {
+      this.log(`Low confidence (${analysis.confidence}), setting status to incomplete and needs manual input.`)
+      return {
+        status: "incomplete",
+        needsManualInput: true,
+      }
+    }
 
     if (hasGarmentInfo && hasSizing && hasMeasurements) {
       return { status: "complete" }
     }
 
     if (hasGarmentInfo && hasSizing) {
+      // If we have garment info and available sizes, but no size chart,
+      // it's a candidate for backend lookup.
       return {
         status: "partial",
         needsBackendLookup: true,
       }
     }
 
+    // This path should ideally be covered by the confidence check above if it's truly a non-product page.
+    // If it reaches here, it means confidence is >= 55, but it's still missing core info.
+    // This might happen if, for example, it found a name and brand, but no sizes at all.
+    // In such cases, manual input (URL) is still the best next step.
     return {
       status: "incomplete",
       needsManualInput: true,

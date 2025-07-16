@@ -5,14 +5,6 @@ import Link from "next/link"
 import { CheckCircle, Zap, Shield, BarChart3 } from "lucide-react"
 import Script from "next/script"
 
-export type GarmentData = {
-  productName: string
-  brand: string
-  sizes: { [key: string]: string[] }
-  imageUrl?: string
-  price?: string
-}
-
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -59,8 +51,8 @@ export default function HomePage() {
             >
               🎯 Find My Size with RunwAI
             </Button>
-            <Button size="lg" variant="outline" className="text-lg px-8 py-4 bg-transparent">
-              Get Integration Code
+            <Button size="lg" variant="outline" className="text-lg px-8 py-4 bg-transparent" asChild>
+              <Link href="/dev-test">Go to Dev Test Bench</Link>
             </Button>
           </div>
           <p className="text-sm text-gray-500 mt-4">↑ Try the actual RunwAI experience right now!</p>
