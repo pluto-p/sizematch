@@ -36,6 +36,11 @@ export type Garment = {
 export function SizingPopup({ isOpen, onClose, currentUrl, mockAnalysisResult }: SizingPopupProps) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isEmbedded, setIsEmbedded] = useState(false)
+
+  useEffect(() => {
+    setIsEmbedded(window.parent !== window)
+  }, [])
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -68,8 +73,6 @@ export function SizingPopup({ isOpen, onClose, currentUrl, mockAnalysisResult }:
   }
 
   if (!isOpen) return null
-
-  const isEmbedded = window.parent !== window
 
   if (isEmbedded) {
     return (

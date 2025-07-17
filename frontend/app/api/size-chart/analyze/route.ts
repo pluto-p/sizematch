@@ -1,75 +1,44 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 
-export async function POST(request: NextRequest) {
+// Mock function to simulate AI analysis of a size chart image
+async function analyzeSizeChartImage(imageData: string): Promise<any> {
+  console.log("[API/size-chart/analyze] 🧠 Simulating AI analysis for image data...")
+  // In a real implementation, this would call a vision AI service
+  await new Promise((resolve) => setTimeout(resolve, 1500)) // Simulate network and processing delay
+
+  // Simulate a successful analysis result
+  const mockAnalysis = {
+    S: { chest: 36, length: 28 },
+    M: { chest: 40, length: 29 },
+    L: { chest: 44, length: 30 },
+  }
+  console.log("[API/size-chart/analyze] ✅ Mock analysis successful:", mockAnalysis)
+  return mockAnalysis
+}
+
+export async function POST(request: Request) {
+  console.log("[API/size-chart/analyze] 🚀 Received request to analyze size chart.")
   try {
-    const formData = await request.formData()
-    const screenshot = formData.get("screenshot") as File
-    const productId = formData.get("productId") as string
+    const body = await request.json()
+    const { imageData, productId } = body
 
-    console.log(`[Mock API] Analyzing screenshot for product: ${productId}`)
-    console.log(`[Mock API] Screenshot file: ${screenshot?.name}, size: ${screenshot?.size} bytes`)
-
-    // Simulate processing time for image analysis
-    await new Promise((resolve) => setTimeout(resolve, 2500))
-
-    // Mock extracted data based on product type/ID
-    let mockExtractedData = {}
-    let confidence = 0.85
-
-    if (productId.includes("jeans") || productId.includes("pants") || productId.includes("levi")) {
-      mockExtractedData = {
-        "28": { waist: 28, inseam: 32, rise: 8 },
-        "30": { waist: 30, inseam: 32, rise: 8.5 },
-        "32": { waist: 32, inseam: 32, rise: 9 },
-        "34": { waist: 34, inseam: 32, rise: 9.5 },
-        "36": { waist: 36, inseam: 32, rise: 10 },
-      }
-      confidence = 0.92
-    } else if (productId.includes("shirt") || productId.includes("tshirt") || productId.includes("top")) {
-      mockExtractedData = {
-        S: { chest: 38, length: 27, shoulder: 17 },
-        M: { chest: 40, length: 28, shoulder: 18 },
-        L: { chest: 42, length: 29, shoulder: 19 },
-        XL: { chest: 44, length: 30, shoulder: 20 },
-      }
-      confidence = 0.88
-    } else if (productId.includes("uniqlo") || productId.includes("chino")) {
-      mockExtractedData = {
-        S: { waist: 30, inseam: 32, length: 28 },
-        M: { waist: 32, inseam: 32, length: 29 },
-        L: { waist: 34, inseam: 32, length: 30 },
-        XL: { waist: 36, inseam: 32, length: 31 },
-      }
-      confidence = 0.85
-    } else {
-      // Generic sizing
-      mockExtractedData = {
-        S: { chest: 36, length: 26 },
-        M: { chest: 38, length: 27 },
-        L: { chest: 40, length: 28 },
-        XL: { chest: 42, length: 29 },
-      }
-      confidence = 0.75
+    if (!imageData || !productId) {
+      console.log("[API/size-chart/analyze] ❌ Error: Missing imageData or productId in request body.")
+      return NextResponse.json({ error: "Missing imageData or productId" }, { status: 400 })
     }
 
-    console.log(`[Mock API] Extracted data:`, mockExtractedData)
+    console.log(`[API/size-chart/analyze] 🔎 Analyzing size chart for productId: ${productId}`)
+    const sizeChart = await analyzeSizeChartImage(imageData)
 
-    return NextResponse.json({
-      success: true,
-      extractedData: mockExtractedData,
-      confidence,
-      message: "Size chart successfully analyzed",
-      processingTime: "2.3s",
-    })
+    // Here you would typically save the analyzed size chart to your database
+    // associated with the productId.
+    console.log(`[API/size-chart/analyze] 💾 Saving analyzed size chart for productId: ${productId}`)
+
+    console.log("[API/size-chart/analyze] 🏁 Analysis complete. Sending response.")
+    return NextResponse.json({ success: true, sizeChart })
   } catch (error) {
-    console.error("[Mock API] Error in screenshot analysis:", error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Failed to analyze screenshot",
-        message: "Please try uploading a clearer image of the size chart",
-      },
-      { status: 500 },
-    )
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred"
+    console.error("[API/size-chart/analyze] ❌ Unhandled error during size chart analysis:", error)
+    return NextResponse.json({ error: "Failed to analyze size chart", details: errorMessage }, { status: 500 })
   }
 }

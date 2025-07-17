@@ -1,26 +1,44 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Loader2, Search, AlertCircle, RefreshCw, LogOut } from "lucide-react"
-import { PurchaseHistory } from "./purchase-history"
-import { SizeRecommendation } from "./size-recommendation"
-import { ScreenshotUpload } from "./screenshot-upload"
-import { MultipleGarmentSelector } from "./multiple-garment-selector"
-import { UrlInput } from "./url-input"
-import { GarmentAnalyzer, type AnalysisResult } from "../utils/garment-analyzer"
-import type { User, Garment } from "./sizing-popup"
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Loader2,
+  Search,
+  AlertCircle,
+  RefreshCw,
+  LogOut,
+} from "lucide-react";
+import { PurchaseHistory } from "./purchase-history";
+import { SizeRecommendation } from "./size-recommendation";
+import { ScreenshotUpload } from "./screenshot-upload";
+import { MultipleGarmentSelector } from "./multiple-garment-selector";
+import { UrlInput } from "./url-input";
+import { GarmentAnalyzer, AnalysisResult } from "../utils/garment-analyzer";
+import type { User, Garment } from "./sizing-popup";
 
 interface EnhancedSizingInterfaceProps {
-  user: User
-  currentUrl: string
-  onLogout: () => void
-  mockAnalysisResult?: AnalysisResult | AnalysisResult[] | null
+  user: User;
+  currentUrl: string;
+  onLogout: () => void;
+  mockAnalysisResult?: AnalysisResult | AnalysisResult[] | null;
 }
 
-type ViewState = "analyzing" | "multiple-garments" | "screenshot-upload" | "url-input" | "ready" | "error"
+type ViewState =
+  | "analyzing"
+  | "multiple-garments"
+  | "screenshot-upload"
+  | "url-input"
+  | "ready"
+  | "error";
 
 export function EnhancedSizingInterface({
   user,
@@ -28,118 +46,131 @@ export function EnhancedSizingInterface({
   onLogout,
   mockAnalysisResult,
 }: EnhancedSizingInterfaceProps) {
-  const [viewState, setViewState] = useState<ViewState>("analyzing")
-  const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([])
-  const [selectedGarment, setSelectedGarment] = useState<AnalysisResult | null>(null)
-  const [selectedReference, setSelectedReference] = useState<Garment | null>(null)
-  const [purchases, setPurchases] = useState<Garment[]>([])
-  const [error, setError] = useState<string | null>(null)
-  const [isBackendLookup, setIsBackendLookup] = useState(false)
-  const [urlInputError, setUrlInputError] = useState<string | null>(null)
-  const [isUrlLoading, setIsUrlLoading] = useState(false)
+  const [viewState, setViewState] = useState<ViewState>("analyzing");
+  const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
+  const [selectedGarment, setSelectedGarment] = useState<AnalysisResult | null>(
+    null
+  );
+  const [selectedReference, setSelectedReference] = useState<Garment | null>(
+    null
+  );
+  const [purchases, setPurchases] = useState<Garment[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isBackendLookup, setIsBackendLookup] = useState(false);
+  const [urlInputError, setUrlInputError] = useState<string | null>(null);
+  const [isUrlLoading, setIsUrlLoading] = useState(false);
 
-  const analyzer = new GarmentAnalyzer()
+  const log = (message: string, ...args: any[]) => {
+    console.log(`[EnhancedSizingInterface] ${message}`, ...args);
+  };
+
+  const analyzer = new GarmentAnalyzer();
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      performAnalysis()
-    }, 1000)
+      performAnalysis();
+    }, 1000);
 
-    return () => clearTimeout(timer)
-  }, [currentUrl, mockAnalysisResult])
+    return () => clearTimeout(timer);
+  }, [currentUrl, mockAnalysisResult]);
 
   const performAnalysis = async (targetUrl?: string) => {
-    setViewState("analyzing")
-    setError(null)
-    setIsBackendLookup(false)
+    setViewState("analyzing");
+    setError(null);
+    setIsBackendLookup(false);
+
+    log("🚀 Starting analysis for:", targetUrl || currentUrl);
 
     try {
-      const urlToAnalyze = targetUrl || currentUrl
-      console.log("[Enhanced Interface] Starting analysis for:", urlToAnalyze)
+      const urlToAnalyze = targetUrl || currentUrl;
 
-      let analysis: AnalysisResult | AnalysisResult[] | null = null
+      let analysis: AnalysisResult | AnalysisResult[] | null = null;
 
       if (mockAnalysisResult) {
-        console.log("[Enhanced Interface] Using mock analysis result:", mockAnalysisResult)
-        analysis = mockAnalysisResult
+        log("Using mock analysis result:", mockAnalysisResult);
+        analysis = mockAnalysisResult;
       } else {
-        analysis = await analyzer.analyzeCurrentPage()
-        console.log("[Enhanced Interface] Live analysis result:", analysis)
+        analysis = await analyzer.analyzePage();
+        log("Live analysis result:", analysis);
       }
 
       if (!analysis) {
-        console.log("[Enhanced Interface] No analysis result, defaulting to URL input.")
-        setViewState("url-input")
-        return
+        log("No analysis result, defaulting to URL input.");
+        setViewState("url-input");
+        return;
       }
 
-      let results: AnalysisResult[]
+      let results: AnalysisResult[];
       if (Array.isArray(analysis)) {
-        results = analysis
+        results = analysis;
       } else {
-        results = [analysis]
+        results = [analysis];
       }
 
       // This check is only for live analysis when no mock is provided
       // and if the current URL is on the same domain as the app itself.
       // If the confidence is low, it means it's likely not a product page.
-      if (!mockAnalysisResult && urlToAnalyze.includes(window.location.hostname) && results[0].confidence < 55) {
-        console.log("[Enhanced Interface] Low confidence on own domain (live analysis), defaulting to URL input.")
-        setViewState("url-input")
-        return
+      if (
+        !mockAnalysisResult &&
+        urlToAnalyze.includes(window.location.hostname) &&
+        results[0].confidence < 55
+      ) {
+        log("Low confidence on own domain (live analysis), defaulting to URL input.");
+        setViewState("url-input");
+        return;
       }
 
-      setAnalysisResults(results)
+      setAnalysisResults(results);
 
       if (results.length > 1) {
-        setViewState("multiple-garments")
+        setViewState("multiple-garments");
       } else {
-        await handleSingleGarment(results[0])
+        await handleSingleGarment(results[0]);
       }
     } catch (error) {
-      console.error("[Enhanced Interface] Analysis failed:", error)
-      setError("Failed to analyze the current page. Please try manual input.")
-      setViewState("error")
+      console.error("Analysis failed:", error);
+      setError("Failed to analyze the current page. Please try manual input.");
+      setViewState("error");
     }
-  }
+  };
 
   const handleSingleGarment = async (garment: AnalysisResult) => {
-    setSelectedGarment(garment)
+    setSelectedGarment(garment);
 
     if (garment.status === "complete") {
-      setViewState("ready")
+      setViewState("ready");
     } else if (garment.needsBackendLookup) {
       // If it needs backend lookup, try that first.
-      await performBackendLookup(garment)
+      await performBackendLookup(garment);
     } else if (garment.status === "partial" && !garment.sizing.sizeChart) {
       // If it's partial (meaning garment info and sizes were found, but no size chart),
       // and it didn't need backend lookup (or backend lookup failed, handled in performBackendLookup),
       // then it's a good candidate for screenshot upload.
-      setViewState("screenshot-upload")
+      setViewState("screenshot-upload");
     } else if (garment.needsManualInput) {
       // This case should primarily be hit by the initial analysis if it's very poor.
       // If we're here after a manual URL submission, it means the submitted URL
       // still couldn't be processed enough to even get to screenshot upload.
-      setViewState("url-input")
+      setViewState("url-input");
     } else {
       // Fallback for any other partial state that might be considered "ready"
-      setViewState("ready")
+      setViewState("ready");
     }
-  }
+  };
 
   const performBackendLookup = async (garment: AnalysisResult) => {
-    setIsBackendLookup(true)
+    setIsBackendLookup(true);
 
     try {
-      console.log("[Enhanced Interface] Performing backend lookup for:", garment.productId)
+      log("Performing backend lookup for:", garment.productId);
 
       const response = await fetch("/api/garments/lookup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ productId: garment.productId }),
-      })
+      });
 
-      const result = await response.json()
+      const result = await response.json();
 
       if (result.found && result.sizeChart) {
         const updatedGarment: AnalysisResult = {
@@ -150,26 +181,26 @@ export function EnhancedSizingInterface({
           },
           status: "complete",
           needsBackendLookup: false,
-        }
+        };
 
-        setSelectedGarment(updatedGarment)
-        setViewState("ready")
-        console.log("[Enhanced Interface] Backend lookup successful")
+        setSelectedGarment(updatedGarment);
+        setViewState("ready");
+        log("Backend lookup successful");
       } else {
-        console.log("[Enhanced Interface] No backend data found, requesting screenshot")
-        setViewState("screenshot-upload")
+        log("No backend data found, requesting screenshot");
+        setViewState("screenshot-upload");
       }
     } catch (error) {
-      console.error("[Enhanced Interface] Backend lookup failed:", error)
-      setViewState("screenshot-upload")
+      console.error("Backend lookup failed:", error);
+      setViewState("screenshot-upload");
     } finally {
-      setIsBackendLookup(false)
+      setIsBackendLookup(false);
     }
-  }
+  };
 
   const handleMultipleGarmentSelect = (garment: AnalysisResult) => {
-    handleSingleGarment(garment)
-  }
+    handleSingleGarment(garment);
+  };
 
   const handleScreenshotAnalysis = (sizeChart: { [size: string]: { [measurement: string]: number } }) => {
     if (selectedGarment) {
@@ -181,23 +212,23 @@ export function EnhancedSizingInterface({
         },
         status: "complete",
         needsManualInput: false,
-      }
+      };
 
-      setSelectedGarment(updatedGarment)
-      setViewState("ready")
+      setSelectedGarment(updatedGarment);
+      setViewState("ready");
     }
-  }
+  };
 
   const handleUrlSubmit = async (url: string) => {
-    setIsUrlLoading(true)
-    setUrlInputError(null)
+    setIsUrlLoading(true);
+    setUrlInputError(null);
 
     try {
-      console.log("[Enhanced Interface] Analyzing URL:", url)
+      log("Analyzing URL:", url);
 
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      let mockGarment: AnalysisResult
+      let mockGarment: AnalysisResult;
 
       if (url.toLowerCase().includes("levi")) {
         mockGarment = {
@@ -222,7 +253,7 @@ export function EnhancedSizingInterface({
           confidence: 95,
           status: "complete",
           needsManualInput: false, // Explicitly set to false as URL was manually provided
-        }
+        };
       } else if (url.toLowerCase().includes("uniqlo")) {
         mockGarment = {
           garment: {
@@ -240,7 +271,7 @@ export function EnhancedSizingInterface({
           confidence: 80,
           status: "partial",
           needsManualInput: false, // Explicitly set to false as URL was manually provided
-        }
+        };
       } else {
         mockGarment = {
           garment: {
@@ -258,26 +289,26 @@ export function EnhancedSizingInterface({
           confidence: 60,
           status: "partial",
           needsManualInput: false, // Explicitly set to false as URL was manually provided
-        }
+        };
       }
 
-      setSelectedGarment(mockGarment)
-      await handleSingleGarment(mockGarment)
+      setSelectedGarment(mockGarment);
+      await handleSingleGarment(mockGarment);
     } catch (error) {
-      console.error("[Enhanced Interface] URL analysis failed:", error)
-      setUrlInputError("Failed to analyze the provided URL. Please check the URL and try again.")
+      console.error("URL analysis failed:", error);
+      setUrlInputError("Failed to analyze the provided URL. Please check the URL and try again.");
     } finally {
-      setIsUrlLoading(false)
+      setIsUrlLoading(false);
     }
-  }
+  };
 
   const handleRetry = () => {
-    performAnalysis()
-  }
+    performAnalysis();
+  };
 
   const handleManualInput = () => {
-    setViewState("url-input")
-  }
+    setViewState("url-input");
+  };
 
   const getTargetGarment = (analysis: AnalysisResult) => ({
     brand: analysis.garment.brand,
@@ -287,7 +318,7 @@ export function EnhancedSizingInterface({
     sizeChart: analysis.sizing.sizeChart || {},
     imageUrl: analysis.garment.images[0],
     url: currentUrl,
-  })
+  });
 
   const handleAddToWardrobe = (garmentData: Partial<Garment>) => {
     const newGarment: Garment = {
@@ -301,16 +332,16 @@ export function EnhancedSizingInterface({
       imageUrl: garmentData.imageUrl || "/placeholder.svg?height=100&width=100",
       purchaseDate: new Date().toISOString().split("T")[0],
       url: garmentData.url,
-    }
+    };
 
-    setPurchases((prev) => [newGarment, ...prev])
-  }
+    setPurchases((prev) => [newGarment, ...prev]);
+  };
 
   const handleNewSearch = () => {
-    setSelectedGarment(null)
-    setSelectedReference(null)
-    setViewState("url-input")
-  }
+    setSelectedGarment(null);
+    setSelectedReference(null);
+    setViewState("url-input");
+  };
 
   return (
     <div className="flex w-full h-full">
@@ -416,23 +447,23 @@ export function EnhancedSizingInterface({
                 </CardHeader>
                 <CardContent>
                   <div className="flex gap-4">
-                    {selectedGarment.garment.images[0] && (
+                    {selectedGarment.garment?.images?.length > 0 && (
                       <img
-                        src={selectedGarment.garment.images[0] || "/placeholder.svg"}
-                        alt={selectedGarment.garment.name}
+                        src={selectedGarment.garment.images[0]}
+                        alt={selectedGarment.garment.name || 'Garment Image'}
                         className="w-24 h-24 object-cover rounded-lg"
                       />
                     )}
                     <div className="flex-1">
-                      <h4 className="font-semibold">{selectedGarment.garment.name}</h4>
-                      <p className="text-sm text-gray-600">{selectedGarment.garment.brand}</p>
-                      {selectedGarment.garment.price && (
+                      <h4 className="font-semibold">{selectedGarment.garment?.name || 'Unknown Garment'}</h4>
+                      <p className="text-sm text-gray-600">{selectedGarment.garment?.brand || 'Unknown Brand'}</p>
+                      {selectedGarment.garment?.price && (
                         <p className="text-sm font-medium">{selectedGarment.garment.price}</p>
                       )}
                       <div className="flex gap-2 mt-2">
-                        <Badge variant="outline">{selectedGarment.garment.category}</Badge>
+                        <Badge variant="outline">{selectedGarment.garment?.category || 'clothing'}</Badge>
                       </div>
-                      {selectedGarment.sizing.availableSizes.length > 0 && (
+                      {selectedGarment.sizing?.availableSizes?.length > 0 && (
                         <p className="text-xs text-gray-500 mt-2">
                           Available sizes: {selectedGarment.sizing.availableSizes.join(", ")}
                         </p>
@@ -462,7 +493,7 @@ export function EnhancedSizingInterface({
               </Card>
 
               {/* Size Recommendation */}
-              {selectedReference && selectedGarment.sizing.sizeChart && (
+              {selectedReference && selectedGarment.sizing?.sizeChart && (
                 <SizeRecommendation
                   targetGarment={getTargetGarment(selectedGarment)}
                   referenceGarment={selectedReference}
@@ -509,5 +540,5 @@ export function EnhancedSizingInterface({
         </div>
       </div>
     </div>
-  )
+  );
 }

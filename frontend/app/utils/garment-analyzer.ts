@@ -26,47 +26,72 @@ export class GarmentAnalyzer {
   private debug = true
 
   private log(message: string, ...args: any[]) {
-    if (this.debug) {
-      console.log(`[GarmentAnalyzer] ${message}`, ...args)
+    console.log(`[GarmentAnalyzer] ${message}`, ...args);
+  }
+
+  async analyzePage(): Promise<any> {
+    this.log("🚀 Starting page analysis...");
+    try {
+      this.log("Extracting garment information...");
+      const garmentInfo = this.extractGarmentInfo();
+      this.log("✅ Successfully extracted garment information:", garmentInfo);
+
+      if (garmentInfo.imageUrl) {
+        this.log(`🖼️ Analyzing image: ${garmentInfo.imageUrl}`);
+        // ... image analysis logic
+      }
+
+      if (garmentInfo.text) {
+        this.log(`📝 Analyzing text content...`);
+        // ... text analysis logic
+      }
+
+      this.log("🏁 Page analysis complete.");
+      return garmentInfo;
+    } catch (error) {
+      this.log("❌ Error during page analysis:", error);
+      throw error;
     }
   }
 
-  async analyzeCurrentPage(): Promise<AnalysisResult> {
-    this.log("Starting page analysis...")
+  private extractGarmentInfo(): any {
+    console.groupCollapsed("[GarmentAnalyzer]🕵️‍♂️ Extracting garment information...");
 
-    const garment = this.extractGarmentInfo()
-    const sizing = this.extractSizingInfo()
-    const productId = this.generateProductId(garment)
-    const confidence = this.calculateConfidence(garment, sizing)
+    const name = this.findProductName();
+    const brand = this.findBrand();
+    const price = this.findPrice();
+    const images = this.findProductImages();
+    const category = this.inferCategory(name.value || "");
 
-    const analysis: AnalysisResult = {
-      garment,
-      sizing,
-      productId,
-      confidence,
-      status: "incomplete", // Default status, will be updated by assessCompleteness
-    }
+    const extractedInfo = {
+      name: name.value,
+      foundBySelector: name.selector,
+      brand: brand.value,
+      brandFoundBy: brand.selector,
+      price: price.value,
+      priceFoundBy: price.selector,
+      images: images.value,
+      imagesFoundBy: images.selector,
+      category: category,
+    };
 
-    // Assess completeness
-    const assessment = this.assessCompleteness(analysis)
-    return { ...analysis, ...assessment }
+    console.log("📦 Extracted Info:", extractedInfo);
+    console.groupEnd();
+
+    return {
+      name: name.value,
+      brand: brand.value,
+      price: price.value,
+      images: images.value,
+      category: category,
+      // Keep original properties for compatibility
+      title: name.value,
+      imageUrl: images.value[0],
+      text: `${name.value} ${""}`
+    };
   }
 
-  private extractGarmentInfo(): GarmentInfo {
-    this.log("Extracting garment information...")
-
-    const name = this.findProductName()
-    const brand = this.findBrand()
-    const price = this.findPrice()
-    const images = this.findProductImages()
-    const category = this.inferCategory(name)
-
-    this.log("Extracted garment info:", { name, brand, price, images: images.length, category })
-
-    return { name, brand, price, images, category }
-  }
-
-  private findProductName(): string {
+  private findProductName(): { value: string | null; selector: string | null } {
     const selectors = [
       'h1[class*="product"]',
       ".product-title",
@@ -76,30 +101,32 @@ export class GarmentAnalyzer {
       ".pdp-product-name",
       ".product-details h1",
       "h1:first-of-type",
-    ]
+    ];
 
-    return this.trySelectors(selectors) || "Unknown Product"
+    return this.trySelectors(selectors);
   }
 
-  private findBrand(): string {
+  private findBrand(): { value: string | null; selector: string | null } {
     const selectors = [
       ".product-brand",
       ".brand-name",
       '[data-testid*="brand"]',
       ".pdp-brand",
       ".product-details .brand",
-    ]
+    ];
 
-    const brand = this.trySelectors(selectors)
-    if (brand) return brand
+    const result = this.trySelectors(selectors);
+    if (result.value) return result;
 
     // Fallback: extract from hostname
-    const hostname = window.location.hostname.replace(/^www\./, "")
-    const brandFromDomain = hostname.split(".")[0]
-    return brandFromDomain.charAt(0).toUpperCase() + brandFromDomain.slice(1)
+    const hostname = window.location.hostname.replace(/^www\./, "");
+    const brandFromDomain = hostname.split(".")[0];
+    const value = brandFromDomain.charAt(0).toUpperCase() + brandFromDomain.slice(1);
+    this.log("Brand not found with selectors, falling back to hostname:", value);
+    return { value, selector: "hostname fallback" };
   }
 
-  private findPrice(): string | undefined {
+  private findPrice(): { value: string | null; selector: string | null } {
     const selectors = [
       ".price",
       ".product-price",
@@ -107,18 +134,26 @@ export class GarmentAnalyzer {
       ".pdp-price",
       ".current-price",
       ".sale-price",
-    ]
+    ];
+
+    const result = this.trySelectors(selectors);
+    if (result.value) return result;
 
     // Also look for price patterns in text
-    const pricePattern = /\$[\d,]+\.?\d*/
-    const bodyText = document.body.textContent || ""
-    const priceMatch = bodyText.match(pricePattern)
+    const pricePattern = /\\$[\d,]+\.?\d*/;
+    const bodyText = document.body.textContent || "";
+    const priceMatch = bodyText.match(pricePattern);
+    if (priceMatch?.[0]) {
+      this.log("Price found with regex pattern:", priceMatch[0]);
+      return { value: priceMatch[0], selector: "regex pattern" };
+    }
 
-    return this.trySelectors(selectors) || priceMatch?.[0]
+    return { value: null, selector: null };
   }
 
-  private findProductImages(): string[] {
-    const images: string[] = []
+  private findProductImages(): { value: string[]; selector: string | null } {
+    const images: string[] = [];
+    let foundBySelector: string | null = null;
 
     const selectors = [
       ".product-image img",
@@ -126,29 +161,40 @@ export class GarmentAnalyzer {
       ".pdp-image img",
       '[data-testid*="product-image"] img',
       ".main-image img",
-    ]
+    ];
 
-    selectors.forEach((selector) => {
-      const elements = document.querySelectorAll(selector)
-      elements.forEach((img) => {
-        const src = (img as HTMLImageElement).src
-        if (src && !src.includes("placeholder") && !images.includes(src)) {
-          images.push(src)
+    for (const selector of selectors) {
+      try {
+        const elements = document.querySelectorAll(selector);
+        if (elements.length > 0) {
+          foundBySelector = selector;
+          elements.forEach((img) => {
+            const src = (img as HTMLImageElement).src;
+            if (src && !src.includes("placeholder") && !images.includes(src)) {
+              images.push(src);
+            }
+          });
+          if (images.length > 0) break; // Stop after finding the first set of images
         }
-      })
-    })
+      } catch (error) {
+        this.log(`Error with image selector ${selector}:`, error);
+      }
+    }
 
-    return images.slice(0, 5) // Limit to 5 images
+    const finalImages = images.slice(0, 5);
+    this.log(`Found ${finalImages.length} images with selector: ${foundBySelector}`);
+    return { value: finalImages, selector: foundBySelector };
   }
 
   private extractSizingInfo(): SizingInfo {
-    this.log("Extracting sizing information...")
+    console.groupCollapsed("[GarmentAnalyzer] Extracting sizing information...");
 
     const availableSizes = this.findAvailableSizes()
     const sizeChart = this.findSizeChart()
     const sizeGuideUrl = this.findSizeGuideLink()
 
-    this.log("Extracted sizing info:", { availableSizes, sizeChart, sizeGuideUrl })
+    this.log("Extracted sizing info:", { availableSizes, sizeChart, sizeGuideUrl });
+    console.groupEnd();
 
     return { availableSizes, sizeChart, sizeGuideUrl }
   }
@@ -393,32 +439,37 @@ export class GarmentAnalyzer {
   }
 
   // Helper methods
-  private trySelectors(selectors: string[]): string | null {
+  private trySelectors(selectors: string[]): { value: string | null; selector: string | null } {
     for (const selector of selectors) {
       try {
-        const element = document.querySelector(selector)
-        if (element?.textContent?.trim()) {
-          return element.textContent.trim()
+        const element = document.querySelector(selector);
+        const textContent = element?.textContent?.trim();
+        if (textContent) {
+          this.log(`Found text "${textContent.substring(0, 50)}..." with selector: ${selector}`);
+          return { value: textContent, selector: selector };
         }
       } catch (error) {
-        this.log(`Error with selector ${selector}:`, error)
+        this.log(`Error with selector ${selector}:`, error);
       }
     }
-    return null
+    return { value: null, selector: null };
   }
 
-  private trySelectorsForAttribute(selectors: string[], attribute: string): string | null {
+  private trySelectorsForAttribute(selectors: string[], attribute: string): { value: string | null; selector: string | null } {
     for (const selector of selectors) {
       try {
-        const element = document.querySelector(selector)
+        const element = document.querySelector(selector);
         if (element) {
-          const value = element.getAttribute(attribute)
-          if (value) return value
+          const value = element.getAttribute(attribute);
+          if (value) {
+            this.log(`Found attribute ${attribute}="${value}" with selector: ${selector}`);
+            return { value, selector };
+          }
         }
       } catch (error) {
-        this.log(`Error with selector ${selector}:`, error)
+        this.log(`Error with selector ${selector}:`, error);
       }
     }
-    return null
+    return { value: null, selector: null };
   }
 }
