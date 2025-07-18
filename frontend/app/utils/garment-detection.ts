@@ -1,4 +1,4 @@
-import type { TargetGarment } from "../components/sizing-popup" // Updated import path
+import type { TargetGarment } from "../components/sizing-interface" // Updated import path
 
 export async function detectGarmentFromPage(url: string): Promise<TargetGarment | null> {
   try {

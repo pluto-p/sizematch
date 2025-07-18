@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 // Mock session storage (in production this would be a database)
-const MOCK_SESSIONS: { [key: string]: any } = {}
+const MOCK_SESSIONS: { [key: string]: Record<string, unknown> } = {}
 
 export async function POST(request: NextRequest) {
   try {

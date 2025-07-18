@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Search, Loader2 } from "lucide-react"
 import type { Garment } from "./sizing-popup"
+import Image from "next/image"
 
 interface ScrapedGarment {
   brand: string
@@ -155,9 +156,11 @@ export function AddReferenceForm({ onSubmit, onCancel }: AddReferenceFormProps) 
           <CardContent className="space-y-4">
             <div className="flex gap-4">
               {scrapedData.imageUrl && (
-                <img
+                <Image
                   src={scrapedData.imageUrl || "/placeholder.svg"}
                   alt={scrapedData.name}
+                  width={96}
+                  height={96}
                   className="w-24 h-24 object-cover rounded-lg"
                 />
               )}
@@ -210,7 +213,7 @@ export function AddReferenceForm({ onSubmit, onCancel }: AddReferenceFormProps) 
                   {Object.entries(scrapedData.sizeChart[selectedSize]).map(([measurement, value]) => (
                     <div key={measurement} className="flex justify-between">
                       <span className="capitalize">{measurement}:</span>
-                      <span>{value}"</span>
+                      <span>{value}&quot;</span>
                     </div>
                   ))}
                 </div>

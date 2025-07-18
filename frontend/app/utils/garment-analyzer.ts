@@ -25,36 +25,49 @@ export interface AnalysisResult {
 export class GarmentAnalyzer {
   private debug = true
 
-  private log(message: string, ...args: any[]) {
+  private log(message: string, ...args: unknown[]) {
     console.log(`[GarmentAnalyzer] ${message}`, ...args);
   }
 
-  async analyzePage(): Promise<any> {
+  async analyzePage(): Promise<AnalysisResult | null> {
     this.log("🚀 Starting page analysis...");
     try {
       this.log("Extracting garment information...");
       const garmentInfo = this.extractGarmentInfo();
       this.log("✅ Successfully extracted garment information:", garmentInfo);
 
-      if (garmentInfo.imageUrl) {
-        this.log(`🖼️ Analyzing image: ${garmentInfo.imageUrl}`);
-        // ... image analysis logic
+      this.log("Extracting sizing information...");
+      const sizingInfo = this.extractSizingInfo();
+      this.log("✅ Successfully extracted sizing information:", sizingInfo);
+
+      if (!garmentInfo.name || !garmentInfo.brand) {
+        this.log("❌ Missing essential garment info (name or brand). Analysis failed.");
+        return null;
       }
 
-      if (garmentInfo.text) {
-        this.log(`📝 Analyzing text content...`);
-        // ... text analysis logic
-      }
+      const productId = this.generateProductId(garmentInfo);
+      const confidence = this.calculateConfidence(garmentInfo, sizingInfo);
 
-      this.log("🏁 Page analysis complete.");
-      return garmentInfo;
+      let analysis: AnalysisResult = {
+        garment: garmentInfo,
+        sizing: sizingInfo,
+        productId,
+        confidence,
+        status: "incomplete", // Start with incomplete, will be assessed
+      };
+
+      const assessment = this.assessCompleteness(analysis);
+      analysis = { ...analysis, ...assessment };
+
+      this.log("🏁 Page analysis complete.", analysis);
+      return analysis;
     } catch (error) {
       this.log("❌ Error during page analysis:", error);
       throw error;
     }
   }
 
-  private extractGarmentInfo(): any {
+  private extractGarmentInfo(): GarmentInfo {
     console.groupCollapsed("[GarmentAnalyzer]🕵️‍♂️ Extracting garment information...");
 
     const name = this.findProductName();
@@ -64,35 +77,22 @@ export class GarmentAnalyzer {
     const category = this.inferCategory(name.value || "");
 
     const extractedInfo = {
-      name: name.value,
-      foundBySelector: name.selector,
-      brand: brand.value,
-      brandFoundBy: brand.selector,
-      price: price.value,
-      priceFoundBy: price.selector,
+      name: name.value || "Unknown Product",
+      brand: brand.value || "Unknown Brand",
+      price: price.value || undefined,
       images: images.value,
-      imagesFoundBy: images.selector,
       category: category,
     };
 
     console.log("📦 Extracted Info:", extractedInfo);
     console.groupEnd();
 
-    return {
-      name: name.value,
-      brand: brand.value,
-      price: price.value,
-      images: images.value,
-      category: category,
-      // Keep original properties for compatibility
-      title: name.value,
-      imageUrl: images.value[0],
-      text: `${name.value} ${""}`
-    };
+    return extractedInfo;
   }
 
   private findProductName(): { value: string | null; selector: string | null } {
     const selectors = [
+      'meta[property="og:title"]',
       'h1[class*="product"]',
       ".product-title",
       ".product-name",
@@ -301,7 +301,7 @@ export class GarmentAnalyzer {
     ]
 
     const link = this.trySelectorsForAttribute(selectors, "href")
-    return link ? new URL(link, window.location.origin).href : undefined
+    return link.value ? new URL(link.value, window.location.origin).href : undefined
   }
 
   private generateProductId(garment: GarmentInfo): string {
@@ -358,7 +358,8 @@ export class GarmentAnalyzer {
 
   private getFromSKU(): string | null {
     const skuSelectors = [".sku", ".product-sku", '[data-testid*="sku"]']
-    return this.trySelectors(skuSelectors)
+    const result = this.trySelectors(skuSelectors)
+    return result.value
   }
 
   private generateFromContent(garment: GarmentInfo): string {
@@ -438,21 +439,31 @@ export class GarmentAnalyzer {
     }
   }
 
-  // Helper methods
+  // Helper methods document.querySelector(meta[property="og:title"])
   private trySelectors(selectors: string[]): { value: string | null; selector: string | null } {
     for (const selector of selectors) {
       try {
-        const element = document.querySelector(selector);
-        const textContent = element?.textContent?.trim();
+        const element = document.querySelector(selector)
+        if (!element) continue
+
+        let value: string | null = null
+        if (element.tagName === "META") {
+          value = element.getAttribute("content")
+        } else {
+          value = element.textContent
+        }
+
+        const textContent = value?.trim()
+
         if (textContent) {
-          this.log(`Found text "${textContent.substring(0, 50)}..." with selector: ${selector}`);
-          return { value: textContent, selector: selector };
+          this.log(`Found text "${textContent.substring(0, 50)}..." with selector: ${selector}`)
+          return { value: textContent, selector: selector }
         }
       } catch (error) {
-        this.log(`Error with selector ${selector}:`, error);
+        this.log(`Error with selector ${selector}:`, error)
       }
     }
-    return { value: null, selector: null };
+    return { value: null, selector: null }
   }
 
   private trySelectorsForAttribute(selectors: string[], attribute: string): { value: string | null; selector: string | null } {

@@ -62,3 +62,9 @@ Here are the key files and directories involved in the workflow:
     npm run dev
     ```
 4.  Open your browser to `http://localhost:3000/` to see the application. The demo pages (`/dev-test`, `/embed`) are useful for testing the widget's functionality.
+
+5.  Run the following in the web console to launch application:
+
+var script = document.createElement('script');
+script.src = "https://localhost:3000/runwai-embed.js"; 
+document.body.appendChild(script);

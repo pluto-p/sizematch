@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Image from "next/image"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
@@ -29,7 +30,7 @@ export function MultipleGarmentSelector({ garments, onGarmentSelect, onCancel }:
       <CardHeader>
         <CardTitle>Multiple Garments Detected</CardTitle>
         <CardDescription>
-          We found {garments.length} garments on this page. Please select the one you're interested in.
+          We found {garments.length} garments on this page. Please select the one you&apos;re interested in.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -60,9 +61,11 @@ export function MultipleGarmentSelector({ garments, onGarmentSelect, onCancel }:
           <div className="border rounded-lg p-4 bg-gray-50">
             <div className="flex gap-4">
               {selectedGarment.garment.images[0] && (
-                <img
+                <Image
                   src={selectedGarment.garment.images[0] || "/placeholder.svg"}
                   alt={selectedGarment.garment.name}
+                  width={80}
+                  height={80}
                   className="w-20 h-20 object-cover rounded-lg"
                 />
               )}

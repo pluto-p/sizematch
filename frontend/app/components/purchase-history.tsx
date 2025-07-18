@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -11,11 +12,10 @@ import { Plus, Search } from "lucide-react"
 import { AddReferenceForm } from "./add-reference-form"
 
 interface PurchaseHistoryProps {
-  userId: string
   onSelectGarment: (garment: Garment) => void
   selectedGarment: Garment | null
   purchases: Garment[]
-  setPurchases: (purchases: Garment[]) => void
+  setPurchases: (purchases: Garment[] | ((current: Garment[]) => Garment[])) => void
 }
 
 // Mock data - in real app, this would come from API
@@ -57,7 +57,6 @@ const mockPurchases: Garment[] = [
 ]
 
 export function PurchaseHistory({
-  userId,
   onSelectGarment,
   selectedGarment,
   purchases,
@@ -136,9 +135,11 @@ export function PurchaseHistory({
           >
             <CardContent className="p-3">
               <div className="flex gap-3">
-                <img
+                <Image
                   src={item.imageUrl || "/placeholder.svg"}
                   alt={item.name}
+                  width={48}
+                  height={48}
                   className="w-12 h-12 object-cover rounded"
                 />
                 <div className="flex-1 min-w-0">

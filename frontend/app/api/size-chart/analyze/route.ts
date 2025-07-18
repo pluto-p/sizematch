@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 
 // Mock function to simulate AI analysis of a size chart image
-async function analyzeSizeChartImage(imageData: string): Promise<any> {
+async function analyzeSizeChartImage(): Promise<Record<string, Record<string, number>>> {
   console.log("[API/size-chart/analyze] 🧠 Simulating AI analysis for image data...")
   // In a real implementation, this would call a vision AI service
   await new Promise((resolve) => setTimeout(resolve, 1500)) // Simulate network and processing delay
@@ -16,29 +16,35 @@ async function analyzeSizeChartImage(imageData: string): Promise<any> {
   return mockAnalysis
 }
 
-export async function POST(request: Request) {
-  console.log("[API/size-chart/analyze] 🚀 Received request to analyze size chart.")
+export async function POST(req: Request) {
   try {
-    const body = await request.json()
-    const { imageData, productId } = body
+    const body = await req.json()
+    const { imageData, user }: { imageData?: string; user: Record<string, unknown> } = body
 
-    if (!imageData || !productId) {
-      console.log("[API/size-chart/analyze] ❌ Error: Missing imageData or productId in request body.")
-      return NextResponse.json({ error: "Missing imageData or productId" }, { status: 400 })
+    if (!imageData || !user) {
+      console.log("[API/size-chart/analyze] ❌ Error: Missing imageData or user in request body.")
+      return NextResponse.json({ error: "Missing imageData or user" }, { status: 400 })
     }
 
-    console.log(`[API/size-chart/analyze] 🔎 Analyzing size chart for productId: ${productId}`)
-    const sizeChart = await analyzeSizeChartImage(imageData)
+    console.log(`[API/size-chart/analyze] 🔎 Analyzing size chart for user: ${JSON.stringify(user)}`)
+    const sizeChart = await analyzeSizeChartImage()
 
     // Here you would typically save the analyzed size chart to your database
-    // associated with the productId.
-    console.log(`[API/size-chart/analyze] 💾 Saving analyzed size chart for productId: ${productId}`)
+    // associated with the user.
+    console.log(`[API/size-chart/analyze] 💾 Saving analyzed size chart for user: ${JSON.stringify(user)}`)
+
+    // Mock analysis result
+    const analysisResult = {
+      chartType: "table",
+      confidence: 0.95,
+      data: sizeChart,
+    }
 
     console.log("[API/size-chart/analyze] 🏁 Analysis complete. Sending response.")
-    return NextResponse.json({ success: true, sizeChart })
+    return NextResponse.json(analysisResult)
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred"
-    console.error("[API/size-chart/analyze] ❌ Unhandled error during size chart analysis:", error)
-    return NextResponse.json({ error: "Failed to analyze size chart", details: errorMessage }, { status: 500 })
+    console.error("Error analyzing size chart:", error)
+    const message = error instanceof Error ? error.message : "An unknown error occurred"
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

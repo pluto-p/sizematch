@@ -1,8 +1,9 @@
 "use client"
 
 import type React from "react"
+import Image from "next/image"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -38,11 +39,7 @@ export function SizingInterface({ user, currentUrl, onLogout }: SizingInterfaceP
   const [isOnRetailerSite, setIsOnRetailerSite] = useState(false)
   const [purchases, setPurchases] = useState<Garment[]>([]) // Add this state
 
-  useEffect(() => {
-    detectCurrentPageGarment()
-  }, [currentUrl])
-
-  const detectCurrentPageGarment = async () => {
+  const detectCurrentPageGarment = useCallback(async () => {
     setIsDetecting(true)
     try {
       const detected = await detectGarmentFromPage(currentUrl)
@@ -58,7 +55,11 @@ export function SizingInterface({ user, currentUrl, onLogout }: SizingInterfaceP
     } finally {
       setIsDetecting(false)
     }
-  }
+  }, [currentUrl])
+
+  useEffect(() => {
+    detectCurrentPageGarment()
+  }, [detectCurrentPageGarment])
 
   const handleManualUrlSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -117,7 +118,6 @@ export function SizingInterface({ user, currentUrl, onLogout }: SizingInterfaceP
 
         <div className="flex-1 overflow-y-auto">
           <PurchaseHistory
-            userId={user.id}
             onSelectGarment={setSelectedReference}
             selectedGarment={selectedReference}
             purchases={purchases}
@@ -162,9 +162,11 @@ export function SizingInterface({ user, currentUrl, onLogout }: SizingInterfaceP
                   {targetGarment ? (
                     <div className="flex gap-4">
                       {targetGarment.imageUrl && (
-                        <img
+                        <Image
                           src={targetGarment.imageUrl || "/placeholder.svg"}
                           alt={targetGarment.name}
+                          width={96}
+                          height={96}
                           className="w-24 h-24 object-cover rounded-lg"
                         />
                       )}
@@ -220,7 +222,7 @@ export function SizingInterface({ user, currentUrl, onLogout }: SizingInterfaceP
                   <CardContent className="pt-6">
                     <div className="text-center text-gray-500">
                       <p className="mb-2">👈 Select a reference garment from your purchase history</p>
-                      <p className="text-sm">We'll compare measurements to recommend the best size</p>
+                      <p className="text-sm">We&apos;ll compare measurements to recommend the best size</p>
                     </div>
                   </CardContent>
                 </Card>

@@ -28,14 +28,14 @@ export default function WidgetPage() {
       try {
         console.log("[Widget] Sending ready message to parent")
         window.parent.postMessage({ type: "RUNWAI_READY" }, "*")
-      } catch (error) {
+      } catch {
         // CORS error is expected and doesn't affect functionality
         console.log("[Widget] CORS restriction (expected, doesn't affect functionality)")
       }
     }
 
     // Add message listener for parent communication
-    const handleMessage = (event) => {
+    const handleMessage = (event: MessageEvent) => {
       console.log("[Widget] Received message:", event.data)
       if (event.data.type === "RUNWAI_RESIZE") {
         // Handle resize requests from parent
@@ -47,7 +47,7 @@ export default function WidgetPage() {
             },
             "*",
           )
-        } catch (error) {
+        } catch {
           // CORS error is expected
         }
       }
@@ -68,7 +68,7 @@ export default function WidgetPage() {
     if (window.parent !== window) {
       try {
         window.parent.postMessage({ type: "RUNWAI_CLOSE" }, "*")
-      } catch (error) {
+      } catch {
         // CORS error is expected, fallback to closing locally
         console.log("[Widget] CORS restriction, closing locally")
         setShowPopup(false)

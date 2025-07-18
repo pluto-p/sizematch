@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -60,21 +61,77 @@ export function EnhancedSizingInterface({
   const [urlInputError, setUrlInputError] = useState<string | null>(null);
   const [isUrlLoading, setIsUrlLoading] = useState(false);
 
-  const log = (message: string, ...args: any[]) => {
+  const log = useCallback((message: string, ...args: unknown[]) => {
     console.log(`[EnhancedSizingInterface] ${message}`, ...args);
-  };
+  }, []);
 
-  const analyzer = new GarmentAnalyzer();
+  const analyzer = useMemo(() => new GarmentAnalyzer(), []);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      performAnalysis();
-    }, 1000);
+  const performBackendLookup = useCallback(async (garment: AnalysisResult) => {
+    setIsBackendLookup(true);
 
-    return () => clearTimeout(timer);
-  }, [currentUrl, mockAnalysisResult]);
+    try {
+      log("Performing backend lookup for:", garment.productId);
 
-  const performAnalysis = async (targetUrl?: string) => {
+      const response = await fetch("/api/garments/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: garment.productId }),
+      });
+
+      const result = await response.json();
+
+      if (result.found && result.sizeChart) {
+        const updatedGarment: AnalysisResult = {
+          ...garment,
+          sizing: {
+            ...garment.sizing,
+            sizeChart: result.sizeChart,
+          },
+          status: "complete",
+          needsBackendLookup: false,
+        };
+
+        setSelectedGarment(updatedGarment);
+        setViewState("ready");
+        log("Backend lookup successful");
+      } else {
+        log("No backend data found, requesting screenshot");
+        setViewState("screenshot-upload");
+      }
+    } catch (error) {
+      console.error("Backend lookup failed:", error);
+      setViewState("screenshot-upload");
+    } finally {
+      setIsBackendLookup(false);
+    }
+  }, [log]);
+
+  const handleSingleGarment = useCallback(async (garment: AnalysisResult) => {
+    setSelectedGarment(garment);
+
+    if (garment.status === "complete") {
+      setViewState("ready");
+    } else if (garment.needsBackendLookup) {
+      // If it needs backend lookup, try that first.
+      await performBackendLookup(garment);
+    } else if (garment.status === "partial" && !garment.sizing.sizeChart) {
+      // If it's partial (meaning garment info and sizes were found, but no size chart),
+      // and it didn't need backend lookup (or backend lookup failed, handled in performBackendLookup),
+      // then it's a good candidate for screenshot upload.
+      setViewState("screenshot-upload");
+    } else if (garment.needsManualInput) {
+      // This case should primarily be hit by the initial analysis if it's very poor.
+      // If we're here after a manual URL submission, it means the submitted URL
+      // still couldn't be processed enough to even get to screenshot upload.
+      setViewState("url-input");
+    } else {
+      // Fallback for any other partial state that might be considered "ready"
+      setViewState("ready");
+    }
+  }, [performBackendLookup]);
+
+  const performAnalysis = useCallback(async (targetUrl?: string) => {
     setViewState("analyzing");
     setError(null);
     setIsBackendLookup(false);
@@ -132,71 +189,15 @@ export function EnhancedSizingInterface({
       setError("Failed to analyze the current page. Please try manual input.");
       setViewState("error");
     }
-  };
+  }, [analyzer, currentUrl, mockAnalysisResult, handleSingleGarment, log]);
 
-  const handleSingleGarment = async (garment: AnalysisResult) => {
-    setSelectedGarment(garment);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      performAnalysis();
+    }, 1000);
 
-    if (garment.status === "complete") {
-      setViewState("ready");
-    } else if (garment.needsBackendLookup) {
-      // If it needs backend lookup, try that first.
-      await performBackendLookup(garment);
-    } else if (garment.status === "partial" && !garment.sizing.sizeChart) {
-      // If it's partial (meaning garment info and sizes were found, but no size chart),
-      // and it didn't need backend lookup (or backend lookup failed, handled in performBackendLookup),
-      // then it's a good candidate for screenshot upload.
-      setViewState("screenshot-upload");
-    } else if (garment.needsManualInput) {
-      // This case should primarily be hit by the initial analysis if it's very poor.
-      // If we're here after a manual URL submission, it means the submitted URL
-      // still couldn't be processed enough to even get to screenshot upload.
-      setViewState("url-input");
-    } else {
-      // Fallback for any other partial state that might be considered "ready"
-      setViewState("ready");
-    }
-  };
-
-  const performBackendLookup = async (garment: AnalysisResult) => {
-    setIsBackendLookup(true);
-
-    try {
-      log("Performing backend lookup for:", garment.productId);
-
-      const response = await fetch("/api/garments/lookup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: garment.productId }),
-      });
-
-      const result = await response.json();
-
-      if (result.found && result.sizeChart) {
-        const updatedGarment: AnalysisResult = {
-          ...garment,
-          sizing: {
-            ...garment.sizing,
-            sizeChart: result.sizeChart,
-          },
-          status: "complete",
-          needsBackendLookup: false,
-        };
-
-        setSelectedGarment(updatedGarment);
-        setViewState("ready");
-        log("Backend lookup successful");
-      } else {
-        log("No backend data found, requesting screenshot");
-        setViewState("screenshot-upload");
-      }
-    } catch (error) {
-      console.error("Backend lookup failed:", error);
-      setViewState("screenshot-upload");
-    } finally {
-      setIsBackendLookup(false);
-    }
-  };
+    return () => clearTimeout(timer);
+  }, [performAnalysis]);
 
   const handleMultipleGarmentSelect = (garment: AnalysisResult) => {
     handleSingleGarment(garment);
@@ -359,7 +360,6 @@ export function EnhancedSizingInterface({
 
         <div className="flex-1 overflow-y-auto">
           <PurchaseHistory
-            userId={user.id}
             onSelectGarment={setSelectedReference}
             selectedGarment={selectedReference}
             purchases={purchases}
@@ -448,9 +448,11 @@ export function EnhancedSizingInterface({
                 <CardContent>
                   <div className="flex gap-4">
                     {selectedGarment.garment?.images?.length > 0 && (
-                      <img
+                      <Image
                         src={selectedGarment.garment.images[0]}
                         alt={selectedGarment.garment.name || 'Garment Image'}
+                        width={96}
+                        height={96}
                         className="w-24 h-24 object-cover rounded-lg"
                       />
                     )}
@@ -508,7 +510,7 @@ export function EnhancedSizingInterface({
                   <CardContent className="pt-6">
                     <div className="text-center text-gray-500">
                       <p className="mb-2">👈 Select a reference garment from your purchase history</p>
-                      <p className="text-sm">We'll compare measurements to recommend the best size</p>
+                      <p className="text-sm">We&apos;ll compare measurements to recommend the best size</p>
                     </div>
                   </CardContent>
                 </Card>

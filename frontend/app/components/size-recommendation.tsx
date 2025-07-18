@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -43,11 +43,7 @@ export function SizeRecommendation({
   const [recommendation, setRecommendation] = useState<SizeRecommendation | null>(null)
   const [isCalculating, setIsCalculating] = useState(true)
 
-  useEffect(() => {
-    calculateRecommendation()
-  }, [targetGarment, referenceGarment])
-
-  const calculateRecommendation = async () => {
+  const calculateRecommendation = useCallback(async () => {
     setIsCalculating(true)
 
     // Simulate calculation time
@@ -56,7 +52,11 @@ export function SizeRecommendation({
     const result = generateSizeRecommendation(targetGarment, referenceGarment)
     setRecommendation(result)
     setIsCalculating(false)
-  }
+  }, [referenceGarment, targetGarment])
+
+  useEffect(() => {
+    calculateRecommendation()
+  }, [calculateRecommendation])
 
   const handleAddToWardrobe = () => {
     if (!recommendation || !onAddToWardrobe) return
@@ -146,21 +146,21 @@ export function SizeRecommendation({
                 <div className="flex items-center gap-3">
                   <span className="font-medium capitalize">{measurement.measurement}</span>
                   <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <span>{measurement.reference}"</span>
+                    <span>{measurement.reference}&quot;</span>
                     <span>→</span>
-                    <span>{measurement.target}"</span>
+                    <span>{measurement.target}&quot;</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {measurement.difference > 0 ? (
                     <>
                       <TrendingUp className="h-4 w-4 text-blue-500" />
-                      <span className="text-blue-600 text-sm">+{measurement.difference}"</span>
+                      <span className="text-blue-600 text-sm">+{measurement.difference}&quot;</span>
                     </>
                   ) : measurement.difference < 0 ? (
                     <>
                       <TrendingDown className="h-4 w-4 text-orange-500" />
-                      <span className="text-orange-600 text-sm">{measurement.difference}"</span>
+                      <span className="text-orange-600 text-sm">{measurement.difference}&quot;</span>
                     </>
                   ) : (
                     <>

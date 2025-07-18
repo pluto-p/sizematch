@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,6 +12,11 @@ export default function DevTestPage() {
   const [showPopup, setShowPopup] = useState(false)
   const [selectedScenario, setSelectedScenario] = useState<string>("live")
   const [mockResult, setMockResult] = useState<AnalysisResult | AnalysisResult[] | null>(null)
+  const [currentUrl, setCurrentUrl] = useState("")
+
+  useEffect(() => {
+    setCurrentUrl(window.location.href)
+  }, [])
 
   const handleOpenPopup = () => {
     let resultToPass: AnalysisResult | AnalysisResult[] | null = null
@@ -45,7 +50,7 @@ export default function DevTestPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="live">Live Page Analysis (Current URL)</SelectItem>
-                <SelectItem value="completeLeviJeans">Levi's Jeans (Complete Data)</SelectItem>
+                <SelectItem value="completeLeviJeans">Levi&apos;s Jeans (Complete Data)</SelectItem>
                 <SelectItem value="partialUniqloChinos">Uniqlo Chinos (Needs Backend Lookup)</SelectItem>
                 <SelectItem value="needsScreenshotGenericShirt">Generic Shirt (Needs Screenshot)</SelectItem>
                 <SelectItem value="noGarmentDetected">No Garment Detected (Triggers URL Input)</SelectItem>
@@ -63,13 +68,13 @@ export default function DevTestPage() {
       <SizingPopup
         isOpen={showPopup}
         onClose={handleClosePopup}
-        currentUrl={window.location.href}
+        currentUrl={currentUrl}
         mockAnalysisResult={mockResult}
       />
 
       <div className="mt-8 text-center text-gray-600 text-sm">
         <p>This page allows you to simulate different RunwAI analysis outcomes for development and testing.</p>
-        <p>Select a scenario and click "Open RunwAI Popup" to see the flow.</p>
+        <p>Select a scenario and click &quot;Open RunwAI Popup&quot; to see the flow.</p>
       </div>
     </div>
   )

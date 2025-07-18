@@ -73,7 +73,7 @@ export default function HomePage() {
                 <Zap className="h-8 w-8 text-gray-700" />
               </div>
               <h3 className="text-xl font-semibold mb-2">30-Second Setup</h3>
-              <p className="text-gray-600">Add one line of code and you're done. No complex integration required.</p>
+              <p className="text-gray-600">Add one line of code and you&apos;re done. No complex integration required.</p>
             </div>
 
             <div className="text-center">
@@ -119,7 +119,7 @@ export default function HomePage() {
               <h3 className="text-xl font-semibold mb-2">Copy the Script</h3>
               <p className="text-gray-600 mb-4">Copy our one-line embed script</p>
               <div className="bg-gray-900 text-green-400 p-3 rounded text-sm font-mono">
-                &lt;script src="https://runwai.com/embed.js"&gt;&lt;/script&gt;
+                &lt;script src=&quot;https://runwai.com/embed.js&quot;&gt;&lt;/script&gt;
               </div>
             </div>
 
@@ -135,7 +135,7 @@ export default function HomePage() {
               <div className="bg-gray-900 text-white rounded-full w-8 h-8 flex items-center justify-center mb-4">
                 <span className="font-bold">3</span>
               </div>
-              <h3 className="text-xl font-semibold mb-2">You're Done!</h3>
+              <h3 className="text-xl font-semibold mb-2">You&apos;re Done!</h3>
               <p className="text-gray-600">RunwAI automatically detects your products and adds sizing buttons</p>
             </div>
           </div>

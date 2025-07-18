@@ -1,11 +1,13 @@
 "use client"
 
-import { useEffect } from "react"
+import { useState, useEffect } from "react"
 
 export default function EmbedPage() {
+  const [script, setScript] = useState("")
+
   useEffect(() => {
     // This would be the embeddable script that retailers add to their sites
-    const script = `
+    const scriptContent = `
       (function() {
         // Create the "Find My Size" button
         function createSizingButton() {
@@ -33,7 +35,7 @@ export default function EmbedPage() {
         // Open the sizing popup
         function openSizingPopup() {
           const iframe = document.createElement('iframe');
-          iframe.src = '${window.location.origin}';
+          iframe.src = '${window.location.origin}/widget?url=' + encodeURIComponent(window.location.href);
           iframe.style.cssText = \`
             position: fixed;
             top: 0;
@@ -49,7 +51,7 @@ export default function EmbedPage() {
           
           // Listen for close message
           window.addEventListener('message', function(event) {
-            if (event.data === 'closeSizingPopup') {
+            if (event.data.type === 'RUNWAI_CLOSE') {
               document.body.removeChild(iframe);
             }
           });
@@ -57,13 +59,30 @@ export default function EmbedPage() {
         
         // Auto-inject button near size selectors
         function injectButton() {
-          const sizeSelectors = document.querySelectorAll('select[name*="size"], .size-selector, .product-size');
+          const sizeSelectors = document.querySelectorAll('select[name*="size"], .size-selector, .product-size, [class*="SizeSelector"], [data-testid*="size-selector"]');
+          let injected = false;
           sizeSelectors.forEach(selector => {
+            if (injected) return; // Inject only once
             const button = createSizingButton();
             selector.parentNode.insertBefore(button, selector.nextSibling);
+            injected = true;
           });
+
+          // Fallback if no selector found
+          if (!injected) {
+            const addToCart = document.querySelector('[data-testid*="add-to-cart"], button[name="add"], #add-to-cart');
+            if (addToCart) {
+               const button = createSizingButton();
+               addToCart.parentNode.insertBefore(button, addToCart);
+            }
+          }
         }
         
+        // Expose RunwAI object
+        window.RunwAI = {
+          open: openSizingPopup,
+        };
+
         // Initialize when DOM is ready
         if (document.readyState === 'loading') {
           document.addEventListener('DOMContentLoaded', injectButton);
@@ -72,20 +91,19 @@ export default function EmbedPage() {
         }
       })();
     `
-
-    return (
-      <div className="p-8">
-        <h1 className="text-2xl font-bold mb-4">Embeddable Smart Sizing Script</h1>
-        <p className="mb-4">Retailers can add this script to their websites to enable smart sizing:</p>
-        <pre className="bg-gray-100 p-4 rounded-lg overflow-x-auto text-sm">
-          <code>{script}</code>
-        </pre>
-        <p className="mt-4 text-sm text-gray-600">
-          This script automatically detects size selectors and adds "Find My Size" buttons next to them.
-        </p>
-      </div>
-    )
+    setScript(scriptContent)
   }, [])
 
-  return null
+  return (
+    <div className="p-8">
+      <h1 className="text-2xl font-bold mb-4">Embeddable Smart Sizing Script</h1>
+      <p className="mb-4">Retailers can add this script to their websites to enable smart sizing:</p>
+      <pre className="bg-gray-100 p-4 rounded-lg overflow-x-auto text-sm">
+        <code>{script}</code>
+      </pre>
+      <p className="mt-4 text-sm text-gray-600">
+        This script automatically detects size selectors and adds &quot;Find My Size&quot; buttons next to them.
+      </p>
+    </div>
+  )
 }

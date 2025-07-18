@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { SizingPopup } from "../components/sizing-popup"
 
@@ -14,9 +15,11 @@ export default function DemoPage() {
         <div className="grid md:grid-cols-2 gap-8">
           {/* Product Image */}
           <div>
-            <img
-              src="/placeholder.svg?height=400&width=400"
+            <Image
+              src="/placeholder.svg"
               alt="Levi's 511 Slim Jeans"
+              width={400}
+              height={400}
               className="w-full rounded-lg"
             />
           </div>
@@ -24,7 +27,7 @@ export default function DemoPage() {
           {/* Product Details */}
           <div className="space-y-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Levi's 511™ Slim Jeans</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Levi&apos;s 511™ Slim Jeans</h1>
               <p className="text-xl text-gray-600">$79.50</p>
             </div>
 
@@ -82,7 +85,8 @@ export default function DemoPage() {
         <h2 className="text-xl font-bold text-blue-900 mb-4">🎯 RunwAI Demo Experience</h2>
         <div className="space-y-2 text-blue-800">
           <p>
-            <strong>1. Click "Find My Size with RunwAI"</strong> - This simulates the button that would be auto-injected
+            <strong>1. Click &quot;Find My Size with RunwAI&quot;</strong> - This simulates the button that would be
+            auto-injected
           </p>
           <p>
             <strong>2. Sign up/Login</strong> - Use any email (demo mode)

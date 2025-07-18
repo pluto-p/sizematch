@@ -1,7 +1,8 @@
 console.log("[RunwAI] Enhanced embed script starting...")
 ;(() => {
   const RUNWAI_CONFIG = {
-    apiUrl: "https://kzmk0kwvtbzus65va7av.lite.vusercontent.net",
+    // https://kzmk0kwvtbzus65va7av.lite.vusercontent.net
+    apiUrl: "https://localhost:3000",
     version: "1.0.0",
     buttonText: "🎯 Find My Size with RunwAI",
     debug: true,

@@ -43,7 +43,7 @@ export function UrlInput({ onUrlSubmit, onCancel, isLoading = false, error }: Ur
           No Garment Detected
         </CardTitle>
         <CardDescription>
-          We couldn't find product information on this page. Please provide the URL of the garment you want to get
+          We couldn&apos;t find product information on this page. Please provide the URL of the garment you want to get
           sizing recommendations for.
         </CardDescription>
       </CardHeader>
@@ -90,7 +90,7 @@ export function UrlInput({ onUrlSubmit, onCancel, isLoading = false, error }: Ur
             <ul className="text-sm text-blue-800 space-y-1">
               <li>• Use the direct product page URL</li>
               <li>• Make sure the page has size information</li>
-              <li>• Popular retailers work best (Levi's, Uniqlo, H&M, etc.)</li>
+              <li>• Popular retailers work best (Levi&apos;s, Uniqlo, H&amp;M, etc.)</li>
             </ul>
           </div>
         </form>
