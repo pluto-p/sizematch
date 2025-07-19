@@ -265,6 +265,25 @@ console.log("[RunwAI] Enhanced embed script starting...")
       version: RUNWAI_CONFIG.version,
     })
 
+    // --- New: Extract and pass JSON-LD data ---
+    try {
+      const jsonLdScripts = document.querySelectorAll('script[type="application/ld+json"]');
+      jsonLdScripts.forEach((script, index) => {
+        if (script.textContent) {
+          // Find the one with Product data, as that's the most important
+          if (script.textContent.includes('"@type":"Product"')) {
+            // Use encodeURIComponent to handle special characters before Base64 encoding
+            const encodedData = btoa(unescape(encodeURIComponent(script.textContent)));
+            params.set('jsonLd', encodedData);
+            log(`Found and encoded JSON-LD Product data to pass to iframe.`);
+          }
+        }
+      });
+    } catch (e) {
+      log("Could not process JSON-LD data:", e);
+    }
+    // --- End New ---
+
     iframe.src = `${RUNWAI_CONFIG.apiUrl}/widget?${params.toString()}`
     iframe.style.cssText = `width: 100%; height: 100%; border: none; background: transparent; display: none;`
     iframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups")

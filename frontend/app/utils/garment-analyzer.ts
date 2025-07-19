@@ -33,7 +33,7 @@ export class GarmentAnalyzer {
     this.log("🚀 Starting page analysis...");
     try {
       this.log("Extracting garment information...");
-      const garmentInfo = this.extractGarmentInfo();
+      const garmentInfo = await this.extractGarmentInfo();
       this.log("✅ Successfully extracted garment information:", garmentInfo);
 
       this.log("Extracting sizing information...");
@@ -67,8 +67,79 @@ export class GarmentAnalyzer {
     }
   }
 
-  private extractGarmentInfo(): GarmentInfo {
-    console.groupCollapsed("[GarmentAnalyzer]🕵️‍♂️ Extracting garment information...");
+  private async waitForElement(selector: string, timeout = 3000): Promise<boolean> {
+    return new Promise(resolve => {
+        const interval = 100;
+        const maxAttempts = timeout / interval;
+        let attempts = 0;
+
+        const check = () => {
+            if (document.querySelector(selector)) {
+                this.log(`Element ${selector} found.`);
+                resolve(true);
+            } else if (attempts >= maxAttempts) {
+                this.log(`Timeout waiting for element ${selector}.`);
+                resolve(false);
+            } else {
+                attempts++;
+                setTimeout(check, interval);
+            }
+        };
+        check();
+    });
+  }
+
+  private async extractGarmentInfo(): Promise<GarmentInfo> {
+    this.log("🕵️‍♂️ Extracting garment information...");
+
+    // --- Strategy 1: Attempt to use structured data (JSON-LD) passed via URL ---
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const jsonLdData = urlParams.get('jsonLd');
+
+      if (jsonLdData) {
+        this.log("Found JSON-LD data in URL parameter. Decoding and parsing...");
+        const decodedData = atob(jsonLdData); // Decode from Base64
+        const data = JSON.parse(decodedData);
+
+        const product = data['@graph']?.find((item: any) => item['@type'] === 'Product') || (data['@type'] === 'Product' ? data : null);
+
+        if (product) {
+          this.log("Successfully parsed Product from passed JSON-LD:", product);
+          const name = product.name;
+          const brand = product.brand?.name || this.findBrand().value;
+
+          if (name && brand) {
+            const price = product.offers?.price ? `${product.offers.priceCurrency || '$'}${product.offers.price}` : this.findPrice().value;
+            let images: string[] = [];
+            if (product.image) {
+              images = Array.isArray(product.image) ? product.image : [product.image];
+            }
+            if (images.length === 0) {
+              images = this.findProductImages().value;
+            }
+
+            const extractedInfo: GarmentInfo = {
+              name: name,
+              brand: brand,
+              price: price || undefined,
+              images: images,
+              category: product.category || this.inferCategory(name),
+            };
+            this.log("📦 Extracted Info from passed JSON-LD:", extractedInfo);
+            return extractedInfo;
+          }
+        }
+      } else {
+        this.log("No JSON-LD data found in URL parameter.");
+      }
+    } catch (error) {
+      this.log("Error processing passed JSON-LD data:", error);
+    }
+
+    // --- Strategy 2: Fallback to DOM scraping if JSON-LD fails or is incomplete ---
+    this.log("Fallback to DOM scraping selectors.");
+    console.groupCollapsed("[GarmentAnalyzer]🕵️‍♂️ Extracting garment information via DOM scraping...");
 
     const name = this.findProductName();
     const brand = this.findBrand();
