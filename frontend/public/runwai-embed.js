@@ -1,3 +1,150 @@
+// GarmentAnalyzer class (converted to JS, no TypeScript types)
+(function() {
+  function GarmentAnalyzer() {}
+  GarmentAnalyzer.prototype.debug = true;
+  GarmentAnalyzer.prototype.log = function(message, ...args) {
+    console.log(`[GarmentAnalyzer] ${message}`, ...args);
+  };
+  GarmentAnalyzer.prototype.analyzePage = async function() {
+    this.log("🚀 Starting page analysis...");
+    try {
+      this.log("Extracting garment information...");
+      const garmentInfo = await this.extractGarmentInfo();
+      this.log("✅ Successfully extracted garment information:", garmentInfo);
+      this.log("Extracting sizing information...");
+      const sizingInfo = this.extractSizingInfo();
+      this.log("✅ Successfully extracted sizing information:", sizingInfo);
+      if (!garmentInfo.name || !garmentInfo.brand) {
+        this.log("❌ Missing essential garment info (name or brand). Analysis failed.");
+        return null;
+      }
+      const productId = this.generateProductId(garmentInfo);
+      const confidence = this.calculateConfidence(garmentInfo, sizingInfo);
+      let analysis = {
+        garment: garmentInfo,
+        sizing: sizingInfo,
+        productId,
+        confidence,
+        status: "incomplete",
+      };
+      const assessment = this.assessCompleteness(analysis);
+      analysis = Object.assign({}, analysis, assessment);
+      this.log("🏁 Page analysis complete.", analysis);
+      return analysis;
+    } catch (error) {
+      this.log("❌ Error during page analysis:", error);
+      throw error;
+    }
+  };
+  GarmentAnalyzer.prototype.extractGarmentInfo = async function() {
+    this.log("🕵️‍♂️ Extracting garment information...");
+    // Try to find JSON-LD structured data
+    try {
+      var scripts = document.querySelectorAll('script[type="application/ld+json"]');
+      for (var i = 0; i < scripts.length; i++) {
+        try {
+          var json = JSON.parse(scripts[i].textContent);
+          if (json['@type'] === 'Product' || (Array.isArray(json['@graph']) && json['@graph'].some(function(item){return item['@type']==='Product'}))) {
+            var product = json['@type'] === 'Product' ? json : json['@graph'].find(function(item){return item['@type']==='Product'});
+            var name = product.name || null;
+            var brand = (product.brand && (product.brand.name || product.brand)) || null;
+            var price = (product.offers && (product.offers.priceCurrency ? product.offers.priceCurrency : '$') + product.offers.price) || null;
+            var images = [];
+            if (product.image) {
+              images = Array.isArray(product.image) ? product.image : [product.image];
+            }
+            var category = product.category || null;
+            var productId = this.generateProductId({ name, brand, price, images, category });
+            var extractedInfo = {
+              name: name,
+              brand: brand,
+              price: price,
+              images: images,
+              category: category,
+              productId: productId
+            };
+            this.log("📦 Extracted Info from JSON-LD:", extractedInfo);
+            return extractedInfo;
+          }
+        } catch (e) { /* ignore parse errors */ }
+      }
+    } catch (e) {
+      this.log("Error extracting JSON-LD:", e);
+    }
+    // Fallback: Try to get product name from <title> or h1
+    var name = document.title || null;
+    var h1 = document.querySelector('h1');
+    if (h1 && h1.textContent) name = h1.textContent;
+    var brand = null;
+    var brandEl = document.querySelector('.brand, .product-brand, [data-testid*="brand"]');
+    if (brandEl && brandEl.textContent) brand = brandEl.textContent;
+    var price = null;
+    var priceEl = document.querySelector('.price, .product-price, [data-testid*="price"]');
+    if (priceEl && priceEl.textContent) price = priceEl.textContent;
+    var images = [];
+    var imgEl = document.querySelector('img');
+    if (imgEl && imgEl.src) images.push(imgEl.src);
+    var category = null;
+    var catEl = document.querySelector('.category');
+    if (catEl && catEl.textContent) category = catEl.textContent;
+    var productId = this.generateProductId({ name, brand, price, images, category });
+    var fallbackInfo = {
+      name: name,
+      brand: brand,
+      price: price,
+      images: images,
+      category: category,
+      productId: productId
+    };
+    this.log("📦 Fallback extracted Info:", fallbackInfo);
+    return fallbackInfo;
+  };
+
+  GarmentAnalyzer.prototype.extractSizingInfo = function() {
+    this.log("Extracting sizing information...");
+    var availableSizes = [];
+    var sizeOptions = document.querySelectorAll('select[name*="size"] option, .size-selector button, .size-option, [data-size]');
+    sizeOptions.forEach(function(el) {
+      var val = el.value || el.textContent;
+      if (val && val.trim() && val.trim().toLowerCase() !== 'select size') {
+        availableSizes.push(val.trim());
+      }
+    });
+    var sizingInfo = {
+      availableSizes: availableSizes,
+      sizeChart: undefined,
+      sizeGuideUrl: undefined
+    };
+    this.log("Extracted sizing info:", sizingInfo);
+    return sizingInfo;
+  };
+  GarmentAnalyzer.prototype.generateProductId = function(garmentInfo) {
+    // Try to use a unique identifier from the URL or product data
+    // 1. Try to extract from URL (e.g., /products/PRODUCT_ID or /PRODUCT_ID)
+    var path = window.location.pathname;
+    var matches = path.match(/\/products?\/([^/]+)/) || path.match(/\/([^/]+)$/);
+    if (matches && matches[1]) return matches[1];
+    // 2. Try to use mpn or sku from JSON-LD if available
+    if (garmentInfo && garmentInfo.mpn) return garmentInfo.mpn;
+    // 3. Fallback: use name + brand hash
+    if (garmentInfo && garmentInfo.name && garmentInfo.brand) {
+      return (
+        garmentInfo.brand.replace(/\W/g, "").toLowerCase() +
+        "_" +
+        garmentInfo.name.replace(/\W/g, "").toLowerCase()
+      ).substring(0, 50);
+    }
+    return "unknown_product";
+  };
+  GarmentAnalyzer.prototype.calculateConfidence = function(garmentInfo, sizingInfo) {
+    // Implementation for calculating confidence score
+  };
+  GarmentAnalyzer.prototype.assessCompleteness = function(analysis) {
+    // Implementation for assessing completeness of the analysis
+  };
+  window.GarmentAnalyzer = GarmentAnalyzer;
+})()
+
 console.log("[RunwAI] Enhanced embed script starting...")
 ;(() => {
   const RUNWAI_CONFIG = {
@@ -265,34 +412,50 @@ console.log("[RunwAI] Enhanced embed script starting...")
       version: RUNWAI_CONFIG.version,
     })
 
-    // --- New: Extract and pass JSON-LD data ---
-    try {
-      const jsonLdScripts = document.querySelectorAll('script[type="application/ld+json"]');
-      jsonLdScripts.forEach((script, index) => {
-        if (script.textContent) {
-          // Find the one with Product data, as that's the most important
-          if (script.textContent.includes('"@type":"Product"')) {
-            // Use encodeURIComponent to handle special characters before Base64 encoding
-            const encodedData = btoa(unescape(encodeURIComponent(script.textContent)));
-            params.set('jsonLd', encodedData);
-            log(`Found and encoded JSON-LD Product data to pass to iframe.`);
-          }
-        }
-      });
-    } catch (e) {
-      log("Could not process JSON-LD data:", e);
-    }
-    // --- End New ---
-
     iframe.src = `${RUNWAI_CONFIG.apiUrl}/widget?${params.toString()}`
     iframe.style.cssText = `width: 100%; height: 100%; border: none; background: transparent; display: none;`
     iframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups")
 
-    iframe.onload = () => {
-      log("Iframe loaded successfully")
-      loader.style.display = "none"
-      iframe.style.display = "block"
+    let lastGarmentInfo = null;
+    iframe.onload = async () => {
+      log("Iframe loaded successfully");
+      loader.style.display = "none";
+      iframe.style.display = "block";
+
+      if (window.GarmentAnalyzer) {
+        try {
+          log("Running GarmentAnalyzer in parent context...");
+          const analyzer = new window.GarmentAnalyzer();
+          const result = await analyzer.analyzePage();
+          log("GarmentAnalyzer result in parent:", result);
+          lastGarmentInfo = result.garment;
+          // Do NOT send immediately, wait for READY from iframe
+        } catch (e) {
+          log("Error running GarmentAnalyzer in parent:", e);
+        }
+      } else {
+        log("GarmentAnalyzer not found on window. Skipping analysis.");
+      }
     }
+
+    // Listen for READY from iframe and send garment info
+    window.addEventListener("message", function(event) {
+      if (event.data && event.data.type === "RUNWAI_READY") {
+        log("Received RUNWAI_READY from iframe");
+        if (lastGarmentInfo) {
+          const iframeEl = document.querySelector("#runwai-overlay iframe");
+          if (iframeEl && iframeEl.contentWindow) {
+            iframeEl.contentWindow.postMessage(
+              { type: "GARMENT_INFO", data: lastGarmentInfo },
+              "*"
+            );
+            log("Sent GARMENT_INFO to iframe via postMessage (on READY)", lastGarmentInfo);
+          }
+        } else {
+          log("No garment info available to send to iframe");
+        }
+      }
+    });
 
     container.appendChild(iframe)
     overlay.appendChild(container)

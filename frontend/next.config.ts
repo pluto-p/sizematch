@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
     };
     return config;
   },
+  images: {
+    domains: ["image.uniqlo.com"],
+  },
 };
 
 export default nextConfig;

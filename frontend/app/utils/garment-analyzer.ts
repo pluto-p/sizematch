@@ -4,6 +4,7 @@ export interface GarmentInfo {
   price?: string
   images: string[]
   category?: string
+  productId?: string // <-- Add productId here
 }
 
 export interface SizingInfo {
@@ -102,13 +103,14 @@ export class GarmentAnalyzer {
         const decodedData = atob(jsonLdData); // Decode from Base64
         const data = JSON.parse(decodedData);
 
-        const product = data['@graph']?.find((item: any) => item['@type'] === 'Product') || (data['@type'] === 'Product' ? data : null);
+        const product = data['@graph']?.find(
+          (item: unknown) => typeof item === 'object' && item !== null && (item as { [key: string]: unknown })['@type'] === 'Product'
+        ) || (data['@type'] === 'Product' ? data : null);
 
         if (product) {
           this.log("Successfully parsed Product from passed JSON-LD:", product);
           const name = product.name;
           const brand = product.brand?.name || this.findBrand().value;
-
           if (name && brand) {
             const price = product.offers?.price ? `${product.offers.priceCurrency || '$'}${product.offers.price}` : this.findPrice().value;
             let images: string[] = [];
@@ -118,13 +120,20 @@ export class GarmentAnalyzer {
             if (images.length === 0) {
               images = this.findProductImages().value;
             }
-
+            const productId = this.generateProductId({
+              name: name || undefined,
+              brand: brand || undefined,
+              price: price || undefined,
+              images: images,
+              category: product.category || undefined
+            });
             const extractedInfo: GarmentInfo = {
               name: name,
               brand: brand,
               price: price || undefined,
               images: images,
               category: product.category || this.inferCategory(name),
+              productId // <-- Include productId
             };
             this.log("📦 Extracted Info from passed JSON-LD:", extractedInfo);
             return extractedInfo;
@@ -147,12 +156,20 @@ export class GarmentAnalyzer {
     const images = this.findProductImages();
     const category = this.inferCategory(name.value || "");
 
+    const productId = this.generateProductId({
+      name: name.value || "",
+      brand: brand.value || "",
+      price: price.value || "",
+      images: images.value,
+      category: category || ""
+    });
     const extractedInfo = {
       name: name.value || "Unknown Product",
       brand: brand.value || "Unknown Brand",
       price: price.value || undefined,
       images: images.value,
       category: category,
+      productId // <-- Include productId in fallback
     };
 
     console.log("📦 Extracted Info:", extractedInfo);
