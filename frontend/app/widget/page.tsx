@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Image from "next/image"
 import { SizingPopup } from "../components/sizing-popup"
 import type { GarmentInfo } from "../utils/garment-analyzer"
 
@@ -48,6 +47,8 @@ export default function WidgetPage() {
 
     window.addEventListener("message", handleMessage)
 
+    setCurrentUrl(referrerUrl)
+
     console.log("[Widget] Page ready")
 
     return () => {
@@ -57,49 +58,6 @@ export default function WidgetPage() {
 
   const handleClose = () => {
     setShowPopup(false)
-  }
-
-  // Helper to render garment info in a user-friendly way
-  function renderGarmentInfo(info: GarmentInfo) {
-    return (
-      <div style={{padding: 24, background: '#f9fafb', borderBottom: '1px solid #eee'}}>
-        <h2 className="text-xl font-bold mb-2">Product Details</h2>
-        <div className="flex gap-6 items-start">
-          {info.images && info.images.length > 0 && (
-            <Image
-              src={info.images[0]}
-              alt={info.name}
-              width={120}
-              height={160}
-              style={{ objectFit: 'cover', borderRadius: 8, boxShadow: '0 2px 8px #0001' }}
-            />
-          )}
-          <div>
-            <div className="mb-2">
-              <span className="font-semibold">Name:</span> {info.name}
-            </div>
-            <div className="mb-2">
-              <span className="font-semibold">Brand:</span> {info.brand}
-            </div>
-            {info.price && (
-              <div className="mb-2">
-                <span className="font-semibold">Price:</span> {info.price}
-              </div>
-            )}
-            {info.category && (
-              <div className="mb-2">
-                <span className="font-semibold">Category:</span> {info.category}
-              </div>
-            )}
-            {info.productId && (
-              <div className="mb-2">
-                <span className="font-semibold">Product ID:</span> {info.productId}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    )
   }
 
   console.log("[Widget] Rendering")
