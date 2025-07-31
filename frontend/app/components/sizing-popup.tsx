@@ -11,7 +11,7 @@ interface SizingPopupProps {
   isOpen: boolean
   onClose: () => void
   currentUrl: string
-  mockAnalysisResult?: AnalysisResult | AnalysisResult[] | null
+  initialAnalysisResult?: AnalysisResult
 }
 
 export type User = {
@@ -33,7 +33,7 @@ export type Garment = {
   url?: string
 }
 
-export function SizingPopup({ isOpen, onClose, currentUrl, mockAnalysisResult }: SizingPopupProps) {
+export function SizingPopup({ isOpen, onClose, currentUrl, initialAnalysisResult }: SizingPopupProps) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isEmbedded, setIsEmbedded] = useState(false)
@@ -98,7 +98,7 @@ export function SizingPopup({ isOpen, onClose, currentUrl, mockAnalysisResult }:
               user={user}
               currentUrl={currentUrl}
               onLogout={handleLogout}
-              mockAnalysisResult={mockAnalysisResult}
+              initialAnalysisResult={initialAnalysisResult}
             />
           )}
         </div>
@@ -130,7 +130,7 @@ export function SizingPopup({ isOpen, onClose, currentUrl, mockAnalysisResult }:
               user={user}
               currentUrl={currentUrl}
               onLogout={handleLogout}
-              mockAnalysisResult={mockAnalysisResult}
+              initialAnalysisResult={initialAnalysisResult}
             />
           )}
         </div>

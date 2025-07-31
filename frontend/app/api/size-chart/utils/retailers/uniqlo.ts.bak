@@ -1,0 +1,528 @@
+import { Page } from 'playwright';
+import { RetailerScraper, SizeChartData, SizeChartResult, standardizeMeasurementName } from './retailer-scraper';
+import * as cheerio from 'cheerio';
+
+/**
+ * Uniqlo-specific implementation of size chart scraping
+ */
+export class UniqloScraper implements RetailerScraper {
+  /**
+   * Extract product ID from Uniqlo URL and construct size chart URL
+   */
+  async getSizeChartUrl(url: string, productId?: string | null): Promise<string | null> {
+    console.log(`[Uniqlo] Processing URL: ${url}`);
+    
+    // If product ID is directly provided, use it
+    if (productId) {
+      console.log(`[Uniqlo] Using provided product ID: ${productId}`);
+      return `https://www.uniqlo.com/us/en/products/${productId}/00/size?`;
+    }
+    
+    try {
+      // Extract product ID from URL patterns
+      // Pattern: /products/E{NUMBER}-{NUMBER}/{VARIANT}
+      const productPattern = /\/products\/([A-Z]\d+(?:-\d+)?(?:\/\d+)?)/i;
+      const match = url.match(productPattern);
+      
+      if (match && match[1]) {
+        let extractedId = match[1];
+        console.log(`[Uniqlo] Extracted product ID: ${extractedId}`);
+        
+        // For Uniqlo, we'll use the original URL or the size chart URL
+        // Depending on whether it already contains "size" in the path
+        if (url.includes('/size')) {
+          return url;
+        } else if (extractedId.includes('/')) {
+          // ID already has variant, add size to URL
+          return `https://www.uniqlo.com/us/en/products/${extractedId}/size?`;
+        } else {
+          // No variant in ID, use default variant 00
+          return `https://www.uniqlo.com/us/en/products/${extractedId}/00/size?`;
+        }
+      }
+      
+      console.log('[Uniqlo] Could not extract product ID from URL');
+      return null;
+    } catch (error) {
+      console.error('[Uniqlo] Error extracting product ID:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Extract size chart data from Uniqlo's page
+   * Specifically targets the table with class fr-ec-data-table
+   */
+  async extractSizeChart(page: Page): Promise<SizeChartData | null> {
+    try {
+      console.log('[UniqloScraper] Extracting size chart from Uniqlo page');
+      
+      // Wait for the size chart table to be present in the DOM
+      // Uniqlo uses a table with class fr-ec-data-table for their size charts
+      const tableSelector = 'table.fr-ec-data-table';
+      
+      try {
+        await page.waitForSelector(tableSelector, { timeout: 5000 });
+      } catch (e) {
+        console.log('[UniqloScraper] Size chart table not found:', e);
+        return null;
+      }
+      
+      // Extract the size chart data
+      const sizeChart = await page.evaluate((selector) => {
+        const table = document.querySelector(selector);
+        if (!table) return null;
+        
+        const result: { [size: string]: { [measurement: string]: number } } = {};
+        
+        // Extract headers (sizes)
+        const headerRow = table.querySelector('tr');
+        if (!headerRow) return null;
+        
+        const headers: string[] = [];
+        const headerCells = headerRow.querySelectorAll('th');
+        
+        // Start from index 1 to skip the first header (which is usually empty or "Size")
+        for (let i = 1; i < headerCells.length; i++) {
+          const headerText = headerCells[i].textContent?.trim() || '';
+          if (headerText) {
+            headers.push(headerText);
+          }
+        }
+        
+        if (headers.length === 0) return null;
+        
+        // Process each data row
+        const rows = table.querySelectorAll('tr');
+        
+        // Start from index 1 to skip the header row
+        for (let rowIdx = 1; rowIdx < rows.length; rowIdx++) {
+          const row = rows[rowIdx];
+          const cells = row.querySelectorAll('td');
+          
+          if (cells.length < 2) continue;
+          
+          // First cell contains the measurement name
+          const measurementName = cells[0].textContent?.trim() || '';
+          if (!measurementName) continue;
+          
+          // Process each size column (starting from index 1)
+          for (let colIdx = 1; colIdx < cells.length && (colIdx - 1) < headers.length; colIdx++) {
+            const size = headers[colIdx - 1];
+            const valueText = cells[colIdx].textContent?.trim() || '';
+            
+            // Extract numeric value
+            const numericValue = parseFloat(valueText.replace(/[^\d.]/g, ''));
+            
+            if (!isNaN(numericValue)) {
+              // Initialize size if needed
+              if (!result[size]) {
+                result[size] = {};
+              }
+              
+              // Store the measurement with standardized name
+              // We'll standardize names here directly in the browser context
+              const standardizedName = measurementName.toLowerCase()
+                .replace('body length back', 'length')
+                .replace('body length', 'length')
+                .replace('shoulder width', 'shoulder')
+                .replace('body width', 'chest')
+                .replace('sleeve length (center back)', 'sleeve')
+                .replace('sleeve length', 'sleeve')
+                .replace(/\s+/g, '_');
+              
+              result[size][standardizedName] = numericValue;
+            }
+          }
+        }
+        
+        return Object.keys(result).length > 0 ? result : null;
+      }, tableSelector);
+      
+      return sizeChart;
+    } catch (error) {
+      console.error('[UniqloScraper] Error extracting size chart:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Process HTML content to extract size chart data
+   * This is a complementary method that can be used for unit testing without a browser
+   */
+  async handleSizeChartFromHtml(html: string, url: string): Promise<SizeChartResult> {
+    try {
+      console.log('[Uniqlo] Attempting to extract size chart data from HTML');
+      
+      // Load HTML
+      const $ = cheerio.load(html);
+      
+      // Method 1: Try to extract from JSON-LD data on the page
+      const jsonLdData = this.extractJsonLdFromHtml(html);
+      if (jsonLdData && Object.keys(jsonLdData).length > 0) {
+        console.log('[Uniqlo] Successfully extracted size chart from JSON-LD data');
+        return {
+          success: true,
+          sizeChart: jsonLdData
+        };
+      }
+      
+      // Method 2: Look for table with class fr-ec-data-table
+      const sizeTable = $('table.fr-ec-data-table');
+      if (sizeTable.length > 0) {
+        console.log('[Uniqlo] Found size chart table in HTML');
+        const sizeChart = this.parseSizeTableFromHtml($, sizeTable);
+        if (sizeChart && Object.keys(sizeChart).length > 0) {
+          return {
+            success: true,
+            sizeChart
+          };
+        }
+      }
+      
+      return {
+        success: false,
+        message: 'No size chart found in HTML content'
+      };
+    } catch (error: any) {
+      console.error('[Uniqlo] Error processing HTML:', error);
+      return {
+        success: false,
+        message: error.message || 'Unknown error processing HTML'
+      };
+    }
+  }
+  
+  /**
+   * Extract JSON-LD data from HTML
+   */
+  private extractJsonLdFromHtml(html: string): SizeChartData | null {
+    try {
+      const $ = cheerio.load(html);
+      
+      const jsonLdScripts = $('script[type="application/ld+json"]').toArray();
+      for (const script of jsonLdScripts) {
+        const scriptContent = $(script).html();
+        if (!scriptContent) continue;
+        
+        try {
+          const jsonData = JSON.parse(scriptContent.trim());
+          
+          // Look for size chart data in the JSON
+          let sizeGuide = 
+            jsonData.sizeGuide ||
+            jsonData.sizeChart ||
+            (jsonData.product && (jsonData.product.sizeGuide || jsonData.product.sizeChart));
+          
+          if (sizeGuide) {
+            return this.processSizeGuideData(sizeGuide);
+          }
+        } catch (error) {
+          // Continue to next script
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('[Uniqlo] Error extracting JSON-LD:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Parse size chart table from HTML
+   */
+  private parseSizeTableFromHtml($: cheerio.CheerioAPI, table: any): any[] | null {
+    try {
+      console.log('[Uniqlo] Parsing HTML table structure');
+      // Log the table structure
+      const tableHtml = $.html(table).substring(0, 500);
+      console.log('[Uniqlo] Table HTML sample:', tableHtml);
+      
+      // Count rows and cells to understand structure
+      const rows = table.find('tr');
+      console.log(`[Uniqlo] Found ${rows.length} rows`);
+      
+      // Examine first row to determine if it's a header row or data row
+      const firstRow = $(rows[0]);
+      const firstRowCells = firstRow.find('th, td');
+      console.log(`[Uniqlo] First row has ${firstRowCells.length} cells`);
+      
+      // Updated to array-based format
+      const sizeChart: any[] = [];
+      
+      // Check if this is the Uniqlo format with measurements in the header row
+      // and sizes in the first column of each data row
+      const isUniqloFormat = firstRow.find('th').length >= 1 && 
+                             firstRowCells.length >= 2 &&
+                             $(firstRowCells[0]).text().trim().toLowerCase().includes('size');
+      
+      if (isUniqloFormat) {
+        // Uniqlo specific format: measurements in header, sizes in first column of data rows
+        console.log('[Uniqlo] Using Uniqlo-specific table structure parsing');
+        
+        // Extract measurement names from header row (skip first cell which is "Size")
+        const headerRow = $(rows[0]);
+        const headerCells = headerRow.find('th, td');
+        
+        const measurements: string[] = [];
+        const standardizedMeasurements: string[] = [];
+        
+        // Start from index 1 to skip "Size" cell
+        for (let i = 1; i < headerCells.length; i++) {
+          const measurementText = $(headerCells[i]).text().trim();
+          if (measurementText) {
+            measurements.push(measurementText);
+            const standardized = this.standardizeMeasurementName(measurementText);
+            standardizedMeasurements.push(standardized);
+            console.log(`[Uniqlo] Found measurement: ${measurementText} -> ${standardized}`);
+          }
+        }
+        
+        if (measurements.length === 0) {
+          console.log('[Uniqlo] No measurements found in header row');
+          return null;
+        }
+        
+        // Process each data row (starting from index 1 to skip header)
+        for (let rowIdx = 1; rowIdx < rows.length; rowIdx++) {
+          const row = $(rows[rowIdx]);
+          const cells = row.find('th, td');
+          
+          if (cells.length < 2) continue;
+          
+          // First cell contains the size
+          const sizeCell = $(cells[0]);
+          const sizeText = sizeCell.text().trim();
+          
+          if (!sizeText) {
+            console.log(`[Uniqlo] Empty size in row ${rowIdx}`);
+            continue;
+          }
+          
+          console.log(`[Uniqlo] Processing size: ${sizeText}`);
+          
+          // Create an entry for this size
+          const sizeEntry: { size: string, [key: string]: string | number } = { size: sizeText };
+          
+          // Process measurement values (starting from index 1 to skip size cell)
+          for (let colIdx = 1; colIdx < cells.length && (colIdx - 1) < measurements.length; colIdx++) {
+            const measurementIndex = colIdx - 1;
+            const measurementName = standardizedMeasurements[measurementIndex];
+            
+            const valueText = $(cells[colIdx]).text().trim();
+            const numericValue = parseFloat(valueText.replace(/[^\d.]/g, ''));
+            
+            if (!isNaN(numericValue)) {
+              // Add this measurement to the size entry
+              sizeEntry[measurementName] = numericValue;
+              console.log(`[Uniqlo] Added ${measurementName}=${numericValue} to size ${sizeText}`);
+            }
+          }
+          
+          // Add this size entry if it has measurements
+          if (Object.keys(sizeEntry).length > 1) {
+            sizeChart.push(sizeEntry);
+          }
+        }
+      } else if (firstRow.find('th').length > 1) {
+        // Classic structure with header row containing sizes
+        console.log('[Uniqlo] Using classic table structure parsing');
+        
+        // Extract sizes from header row (skip first cell which is typically "SIZE")
+        const headerRow = $(rows[0]);
+        const headerCells = headerRow.find('th');
+        
+        const sizes: string[] = [];
+        for (let i = 1; i < headerCells.length; i++) {
+          const sizeText = $(headerCells[i]).text().trim();
+          if (sizeText) {
+            sizes.push(sizeText);
+          }
+        }
+        
+        if (sizes.length === 0) {
+          console.log('[Uniqlo] No sizes found in classic header row');
+          return null;
+        }
+        
+        console.log('[Uniqlo] Extracted sizes:', sizes);
+        
+        // Create an object for each size
+        for (const size of sizes) {
+          sizeChart.push({ size });
+        }
+        
+        // Process each data row (starting from index 1 to skip header)
+        for (let rowIdx = 1; rowIdx < rows.length; rowIdx++) {
+          const row = $(rows[rowIdx]);
+          const cells = row.find('td, th');
+          
+          if (cells.length < 2) continue;
+          
+          // First cell contains the measurement name
+          const measurementNameCell = $(cells[0]);
+          const measurementName = measurementNameCell.text().trim();
+          
+          if (!measurementName) {
+            console.log(`[Uniqlo] Empty measurement name in row ${rowIdx}`);
+            continue;
+          }
+          
+          const standardizedName = this.standardizeMeasurementName(measurementName);
+          console.log(`[Uniqlo] Processing measurement: ${measurementName} -> ${standardizedName}`);
+          
+          // Process each size column (starting from index 1)
+          for (let colIdx = 1; colIdx < cells.length && (colIdx - 1) < sizes.length; colIdx++) {
+            const sizeIndex = colIdx - 1;
+            if (sizeIndex >= sizeChart.length) continue;
+            
+            const valueText = $(cells[colIdx]).text().trim();
+            const numericValue = parseFloat(valueText.replace(/[^\d.]/g, ''));
+            
+            if (!isNaN(numericValue)) {
+              // Add this measurement to the corresponding size entry
+              sizeChart[sizeIndex][standardizedName] = numericValue;
+              console.log(`[Uniqlo] Added ${standardizedName}=${numericValue} to size ${sizes[sizeIndex]}`);
+            }
+          }
+        }
+      } else {
+        // Alternative structure - perhaps sizes are in the first column?
+        console.log('[Uniqlo] Using alternative table structure parsing');
+        
+        // Check each row - first cell might be the size
+        for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+          const row = $(rows[rowIdx]);
+          const cells = row.find('td, th');
+          
+          if (cells.length < 2) continue;
+          
+          // First cell might be the size
+          const sizeCell = $(cells[0]);
+          const sizeText = sizeCell.text().trim();
+          
+          if (!sizeText) continue;
+          
+          console.log(`[Uniqlo] Processing potential size row: ${sizeText}`);
+          
+          // Try to parse as a number - if it's a number, it might be a size
+          const potentialSize = parseInt(sizeText.replace(/\D/g, ''));
+          if (!isNaN(potentialSize)) {
+            // Create an entry for this size
+            const sizeEntry: { size: string, [key: string]: string | number } = { size: sizeText };
+            
+            // Look for measurements in other cells
+            for (let colIdx = 1; colIdx < cells.length; colIdx++) {
+              const cell = $(cells[colIdx]);
+              let measurementName = '';
+              let value = NaN;
+              
+              // Try to extract measurement name from header row if exists
+              if (rowIdx > 0 && colIdx < firstRowCells.length) {
+                measurementName = $(firstRowCells[colIdx]).text().trim();
+              }
+              
+              // If no measurement name, use column index
+              if (!measurementName) {
+                measurementName = `measurement${colIdx}`;
+              }
+              
+              const standardizedName = this.standardizeMeasurementName(measurementName);
+              const valueText = cell.text().trim();
+              value = parseFloat(valueText.replace(/[^\d.]/g, ''));
+              
+              if (!isNaN(value)) {
+                // Add this measurement to the size entry
+                sizeEntry[standardizedName] = value;
+                console.log(`[Uniqlo] Added ${standardizedName}=${value} to size ${sizeText}`);
+              }
+            }
+            
+            // Add this size entry if it has measurements
+            if (Object.keys(sizeEntry).length > 1) {
+              sizeChart.push(sizeEntry);
+            }
+          }
+        }
+      }
+      
+      // Check if any measurements were added
+      const hasMeasurements = sizeChart.some(entry => Object.keys(entry).length > 1);
+      
+      console.log(`[Uniqlo] Final size chart has ${sizeChart.length} sizes with measurements: ${hasMeasurements}`);
+      
+      return hasMeasurements ? sizeChart : null;
+    } catch (error) {
+      console.error('[Uniqlo] Error parsing size table from HTML:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * Process size guide data from JSON-LD
+   */
+  private processSizeGuideData(data: any): SizeChartData | null {
+    if (!data) return null;
+    
+    // Convert string data to object if needed
+    if (typeof data === 'string') {
+      try {
+        data = JSON.parse(data);
+      } catch (error) {
+        return null;
+      }
+    }
+    
+    // Handle different formats of size guide data
+    if (typeof data === 'object' && data !== null) {
+      const result: SizeChartData = {};
+      
+      // Case 1: Direct mapping of sizes to measurements
+      // { "S": { "chest": 36, "waist": 28 }, "M": {...} }
+      const isSizeChart = Object.values(data).some(value => 
+        typeof value === 'object' && value !== null &&
+        Object.values(value as object).some(v => typeof v === 'number')
+      );
+      
+      if (isSizeChart) {
+        for (const [size, measurements] of Object.entries(data)) {
+          if (typeof measurements === 'object' && measurements !== null) {
+            result[size] = {};
+            
+            for (const [key, value] of Object.entries(measurements as object)) {
+              const numValue = typeof value === 'number' ? value : parseFloat(String(value));
+              if (!isNaN(numValue)) {
+                result[size][this.standardizeMeasurementName(key)] = numValue;
+              }
+            }
+          }
+        }
+      }
+      
+      return Object.keys(result).length > 0 ? result : null;
+    }
+    
+    return null;
+  }
+  
+  /**
+   * Standardize measurement names for consistency
+   */
+  standardizeMeasurementName(name: string): string {
+    return standardizeMeasurementName(name);
+  }
+}
+
+// Export singleton instance for use throughout the application
+export const uniqloScraper = new UniqloScraper();
+
+// Backwards compatibility function for existing code
+export async function uniqloStrategy(url: string, productId?: string | null): Promise<string | null> {
+  return uniqloScraper.getSizeChartUrl(url, productId);
+}
+
+// Backwards compatibility function for existing tests
+export async function handleUniqloSizeChart(html: string, url: string): Promise<SizeChartResult> {
+  return uniqloScraper.handleSizeChartFromHtml(html, url);
+}

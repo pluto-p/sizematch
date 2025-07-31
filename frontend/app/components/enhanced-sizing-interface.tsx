@@ -26,11 +26,44 @@ import { UrlInput } from "./url-input";
 import { GarmentAnalyzer, AnalysisResult } from "../utils/garment-analyzer";
 import type { User, Garment } from "./sizing-popup";
 
+/**
+ * Fetches a size chart from the server-side API
+ */
+async function fetchSizeChartFromServer(
+  url: string, 
+  brand?: string, 
+  productId?: string
+): Promise<{
+  sizeChart?: { [size: string]: { [measurement: string]: number } };
+  imageUrl?: string;
+  status: string;
+  message?: string;
+}> {
+  try {
+    const params = new URLSearchParams({ url });
+    if (brand) params.append('brand', brand);
+    if (productId) params.append('productId', productId);
+    
+    console.log(`[EnhancedSizingInterface] Fetching size chart from API for URL: ${url}, Brand: ${brand || 'not provided'}, Product ID: ${productId || 'not provided'}`);
+    const response = await fetch(`/api/size-chart/fetch?${params.toString()}`);
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}`);
+    }
+    
+    const result = await response.json();
+    console.log(`[EnhancedSizingInterface] API response:`, result);
+    return result;
+  } catch (error: any) {
+    console.error('[EnhancedSizingInterface] API fetch error:', error);
+    return { status: 'error', message: error.message };
+  }
+}
+
 interface EnhancedSizingInterfaceProps {
   user: User;
   currentUrl: string;
   onLogout: () => void;
-  mockAnalysisResult?: AnalysisResult | AnalysisResult[] | null;
+  initialAnalysisResult?: AnalysisResult;
 }
 
 type ViewState =
@@ -45,7 +78,7 @@ export function EnhancedSizingInterface({
   user,
   currentUrl,
   onLogout,
-  mockAnalysisResult,
+  initialAnalysisResult,
 }: EnhancedSizingInterfaceProps) {
   const [viewState, setViewState] = useState<ViewState>("analyzing");
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
@@ -60,6 +93,7 @@ export function EnhancedSizingInterface({
   const [isBackendLookup, setIsBackendLookup] = useState(false);
   const [urlInputError, setUrlInputError] = useState<string | null>(null);
   const [isUrlLoading, setIsUrlLoading] = useState(false);
+  const [autoSizeChartAttempted, setAutoSizeChartAttempted] = useState(false);
 
   const log = useCallback((message: string, ...args: unknown[]) => {
     console.log(`[EnhancedSizingInterface] ${message}`, ...args);
@@ -143,13 +177,9 @@ export function EnhancedSizingInterface({
 
       let analysis: AnalysisResult | AnalysisResult[] | null = null;
 
-      if (mockAnalysisResult) {
-        log("Using mock analysis result:", mockAnalysisResult);
-        analysis = mockAnalysisResult;
-      } else {
-        analysis = await analyzer.analyzePage();
-        log("Live analysis result:", analysis);
-      }
+      // Remove mockAnalysisResult logic
+      analysis = await analyzer.analyzePage();
+      log("Live analysis result:", analysis);
 
       if (!analysis) {
         log("No analysis result, defaulting to URL input.");
@@ -168,7 +198,6 @@ export function EnhancedSizingInterface({
       // and if the current URL is on the same domain as the app itself.
       // If the confidence is low, it means it's likely not a product page.
       if (
-        !mockAnalysisResult &&
         urlToAnalyze.includes(window.location.hostname) &&
         results[0].confidence < 55
       ) {
@@ -189,15 +218,77 @@ export function EnhancedSizingInterface({
       setError("Failed to analyze the current page. Please try manual input.");
       setViewState("error");
     }
-  }, [analyzer, currentUrl, mockAnalysisResult, handleSingleGarment, log]);
+  }, [analyzer, currentUrl, handleSingleGarment, log]);
 
   useEffect(() => {
+    if (initialAnalysisResult) {
+      setSelectedGarment(initialAnalysisResult);
+      setViewState("ready"); // Always show detected info first
+      // If size chart is missing, trigger improved workflow in background
+      if (!initialAnalysisResult.sizing.sizeChart && !autoSizeChartAttempted) {
+        setAutoSizeChartAttempted(true);
+        (async () => {
+          if (initialAnalysisResult.needsBackendLookup) {
+            await performBackendLookup(initialAnalysisResult);
+          } else {
+            log("Attempting to fetch size chart from server API");
+            const brand = initialAnalysisResult.garment.brand || '';
+            const productId = initialAnalysisResult.productId || '';
+            
+            // Make sure we pass both brand and productId to the API
+            const result = await fetchSizeChartFromServer(currentUrl, brand, productId);
+            
+            if (result.status === 'success' && (result.sizeChart || result.imageUrl)) {
+              log("Successfully found size chart from API");
+              
+              // If we have structured size chart data
+              if (result.sizeChart && Object.keys(result.sizeChart).length > 0) {
+                // Update the selected garment with the size chart
+                const updatedGarment: AnalysisResult = {
+                  ...initialAnalysisResult,
+                  sizing: {
+                    ...initialAnalysisResult.sizing,
+                    sizeChart: result.sizeChart,
+                    // Store the image URL if available too
+                    sizeGuideUrl: result.imageUrl || initialAnalysisResult.sizing.sizeGuideUrl
+                  },
+                  status: "complete", // Mark as complete since we have a size chart
+                };
+                
+                setSelectedGarment(updatedGarment);
+                log("Updated garment with size chart from API");
+              }
+              // If we only have an image but no structured data
+              else if (result.imageUrl) {
+                // Store the image URL for potential display
+                const updatedGarment: AnalysisResult = {
+                  ...initialAnalysisResult,
+                  sizing: {
+                    ...initialAnalysisResult.sizing,
+                    sizeGuideUrl: result.imageUrl
+                  },
+                  // Keep as partial since we have an image but no structured data
+                  status: "partial", 
+                };
+                
+                setSelectedGarment(updatedGarment);
+                log("Updated garment with size chart image URL");
+              }
+            } else {
+              log("No size chart found via API, tried all automated strategies");
+            }
+          }
+        })();
+      }
+      return;
+    }
+    // Only run analyzer if not in iframe/embedded mode
     const timer = setTimeout(() => {
       performAnalysis();
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [performAnalysis]);
+  }, [performAnalysis, initialAnalysisResult, performBackendLookup, autoSizeChartAttempted, log, currentUrl]);
 
   const handleMultipleGarmentSelect = (garment: AnalysisResult) => {
     handleSingleGarment(garment);
@@ -344,6 +435,16 @@ export function EnhancedSizingInterface({
     setViewState("url-input");
   };
 
+  // Handler for reference garment selection with logging
+  const handleReferenceSelect = (garment: Garment) => {
+    log("Reference garment selected:", garment);
+    setSelectedReference(garment);
+  };
+
+  // In the UI, only show screenshot upload if user clicks a button
+  // Add a handler to trigger screenshot upload view
+  const handleShowScreenshotUpload = () => setViewState("screenshot-upload");
+
   return (
     <div className="flex w-full h-full">
       {/* Left Sidebar - Purchase History */}
@@ -360,7 +461,7 @@ export function EnhancedSizingInterface({
 
         <div className="flex-1 overflow-y-auto">
           <PurchaseHistory
-            onSelectGarment={setSelectedReference}
+            onSelectGarment={handleReferenceSelect}
             selectedGarment={selectedReference}
             purchases={purchases}
             setPurchases={setPurchases}
@@ -472,21 +573,38 @@ export function EnhancedSizingInterface({
                       )}
                     </div>
                   </div>
-
-                  {selectedGarment.status !== "complete" && (
+                  
+                  {/* Status message about size information - no actual chart display */}
+                  {selectedGarment.sizing.sizeChart && Object.keys(selectedGarment.sizing.sizeChart).length > 0 && (
+                    <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center gap-2 text-green-800">
+                        <div className="h-4 w-4 rounded-full bg-green-500 flex items-center justify-center">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                        <p className="text-sm">
+                          Size information has been successfully collected. Select a garment from your wardrobe to compare sizes.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Only show upload option if size chart is missing */}
+                  {!selectedGarment.sizing.sizeChart && (
                     <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                       <div className="flex items-center gap-2 text-yellow-800">
                         <AlertCircle className="h-4 w-4" />
                         <p className="text-sm">
-                          Size chart measurements not found.
+                          Size information not found.
                           <Button
                             variant="link"
                             className="p-0 h-auto text-yellow-800 underline"
-                            onClick={() => setViewState("screenshot-upload")}
+                            onClick={handleShowScreenshotUpload}
                           >
                             Upload a screenshot
                           </Button>{" "}
-                          of the size chart for better recommendations.
+                          of the size chart to enable size comparisons.
                         </p>
                       </div>
                     </div>
@@ -496,12 +614,15 @@ export function EnhancedSizingInterface({
 
               {/* Size Recommendation */}
               {selectedReference && selectedGarment.sizing?.sizeChart && (
-                <SizeRecommendation
-                  targetGarment={getTargetGarment(selectedGarment)}
-                  referenceGarment={selectedReference}
-                  onAddToWardrobe={handleAddToWardrobe}
-                  onNewSearch={handleNewSearch}
-                />
+                <>
+                  {log("Triggering size recommendation with target:", getTargetGarment(selectedGarment), "and reference:", selectedReference)}
+                  <SizeRecommendation
+                    targetGarment={getTargetGarment(selectedGarment)}
+                    referenceGarment={selectedReference}
+                    onAddToWardrobe={handleAddToWardrobe}
+                    onNewSearch={handleNewSearch}
+                  />
+                </>
               )}
 
               {/* Instructions */}

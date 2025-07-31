@@ -428,7 +428,7 @@ console.log("[RunwAI] Enhanced embed script starting...")
           const analyzer = new window.GarmentAnalyzer();
           const result = await analyzer.analyzePage();
           log("GarmentAnalyzer result in parent:", result);
-          lastGarmentInfo = result.garment;
+          lastGarmentInfo = result; // Send the full AnalysisResult, not just garment
           // Do NOT send immediately, wait for READY from iframe
         } catch (e) {
           log("Error running GarmentAnalyzer in parent:", e);

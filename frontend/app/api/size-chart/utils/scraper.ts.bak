@@ -1,0 +1,369 @@
+import { Page } from 'playwright';
+import { BrowserManager } from './browser-manager';
+import { getScraperForUrl, getRetailerFromUrl, getScraperForRetailer } from './retailers/index-updated';
+import { SizeChartData } from './retailers/retailer-scraper';
+
+// Flag to identify test mode - helps bypass real navigation for tests
+let TEST_MODE = false;
+
+/**
+ * Set test mode for scraper (used by tests to bypass real navigation)
+ */
+export function setTestMode(enabled: boolean) {
+  TEST_MODE = enabled;
+}
+
+/**
+ * Scrape size chart data from any retail website using Playwright
+ */
+export async function scrapeSizeChart(url: string, testPage?: Page): Promise<{
+  sizeChart?: SizeChartData;
+  imageUrl?: string;
+  status: 'success' | 'no-size-chart-found' | 'error';
+  message?: string;
+}> {
+  let page: Page | null = null;
+  let shouldClosePage = true;
+  
+  try {
+    console.log(`[Scraper] Scraping size chart from: ${url}`);
+    
+    // Use provided test page or create a new one
+    if (testPage) {
+      page = testPage;
+      shouldClosePage = false; // Don't close the page if it was provided by the test
+    } else {
+      const browserManager = BrowserManager.getInstance();
+      page = await browserManager.newPage();
+    }
+    
+    // Set a reasonable timeout for loading pages
+    page.setDefaultTimeout(10000);
+    
+    // Try to get a retailer-specific scraper
+    const retailerName = getRetailerFromUrl(url);
+    const retailerScraper = retailerName ? getScraperForRetailer(retailerName) : null;
+    
+    // If we have a retailer-specific scraper, use it to determine the size chart URL
+    let sizeChartUrl = url;
+    if (retailerScraper) {
+      const customUrl = await retailerScraper.getSizeChartUrl(url);
+      if (customUrl) {
+        sizeChartUrl = customUrl;
+        console.log(`[Scraper] Using retailer-specific size chart URL: ${sizeChartUrl}`);
+      }
+    }
+    
+    // Navigate to the URL - skip for test URLs in TEST_MODE
+    if (!TEST_MODE || !url.includes('mockurl.example.com')) {
+      await page.goto(sizeChartUrl, { waitUntil: 'domcontentloaded' });
+      
+      // Wait for the page to be fully rendered - with a shorter timeout
+      try {
+        await page.waitForLoadState('networkidle', { timeout: 5000 });
+      } catch (e) {
+        console.log('[Scraper] Network did not become idle, continuing anyway');
+      }
+    }
+    
+    // Step 1: Try to use retailer-specific extraction if available
+    if (retailerScraper) {
+      console.log(`[Scraper] Using ${retailerName} specific extraction`);
+      const sizeChart = await retailerScraper.extractSizeChart(page);
+      if (sizeChart && Object.keys(sizeChart).length > 0) {
+        console.log(`[Scraper] Successfully extracted size chart with ${Object.keys(sizeChart).length} sizes using ${retailerName} scraper`);
+        return {
+          sizeChart,
+          status: 'success'
+        };
+      }
+    }
+    
+    // Step 2: Fall back to generic extraction methods
+    console.log('[Scraper] Falling back to generic extraction methods');
+    
+    // Extract from tables (most common structure)
+    const tableData = await extractFromTables(page);
+    if (tableData && Object.keys(tableData).length > 0) {
+      return {
+        sizeChart: tableData,
+        status: 'success'
+      };
+    }
+    
+    // Try to extract from grid structures
+    const gridData = await extractFromGrids(page);
+    if (gridData && Object.keys(gridData).length > 0) {
+      return {
+        sizeChart: gridData,
+        status: 'success'
+      };
+    }
+    
+    // Look for size chart image
+    const imageUrl = await extractSizeChartImage(page);
+    if (imageUrl) {
+      console.log(`[Scraper] Found size chart image: ${imageUrl}`);
+      return {
+        imageUrl,
+        status: 'success'
+      };
+    }
+    
+    // No size chart found
+    return {
+      status: 'no-size-chart-found',
+      message: 'No size chart found on the page'
+    };
+    
+  } catch (error: any) {
+    console.error('[Scraper] Error:', error);
+    return {
+      status: 'error',
+      message: error.message || 'Unknown error'
+    };
+  } finally {
+    if (page && shouldClosePage) {
+      try {
+        await page.close();
+      } catch (e) {
+        console.log('[Scraper] Failed to close page:', e);
+      }
+    }
+  }
+}
+
+/**
+ * Extract size chart from HTML tables
+ */
+async function extractFromTables(page: Page): Promise<SizeChartData | null> {
+  try {
+    // Find tables that might contain size charts
+    const tables = await page.$$('table');
+    
+    for (const table of tables) {
+      // Check if this table is likely a size chart
+      const tableText = await table.textContent() || '';
+      
+      // Determine if this table contains size chart data
+      const isSizeChart = 
+        /size|small|medium|large|xs|s|m|l|xl/i.test(tableText) &&
+        /chest|waist|hip|shoulder|length|sleeve|cm|inch|"/i.test(tableText);
+      
+      if (isSizeChart) {
+        // Extract headers (sizes) and measurements
+        const sizeChart: SizeChartData = {};
+        
+        // Get all rows
+        const rows = await table.$$('tr');
+        
+        if (rows.length < 2) continue; // Need at least header + data row
+        
+        // Extract headers from first row
+        const headerRow = rows[0];
+        const headerCells = await headerRow.$$('th, td');
+        
+        // Extract headers (potential sizes)
+        const headers: string[] = [];
+        for (let i = 0; i < headerCells.length; i++) {
+          const cellText = await headerCells[i].textContent() || '';
+          headers.push(cellText.trim());
+        }
+        
+        // First cell is often empty or contains "Size" - we'll use it as measurement name column
+        const hasMeasurementNameColumn = headers.length > 0 && 
+          (headers[0] === '' || /size|measurement/i.test(headers[0]));
+        
+        // Process data rows
+        for (let rowIdx = 1; rowIdx < rows.length; rowIdx++) {
+          const row = rows[rowIdx];
+          const cells = await row.$$('td, th');
+          
+          if (cells.length < 2) continue;
+          
+          // First cell is usually the measurement name
+          const measurementName = await cells[0].textContent() || '';
+          if (!measurementName.trim()) continue;
+          
+          // Process each size column
+          for (let colIdx = 1; colIdx < cells.length; colIdx++) {
+            // Skip if we don't have a corresponding header
+            if (colIdx >= headers.length) continue;
+            
+            const size = headers[colIdx];
+            if (!size.trim() || /size|measurement/i.test(size)) continue;
+            
+            const valueText = await cells[colIdx].textContent() || '';
+            const valueMatch = valueText.match(/(\d+(\.\d+)?)/);
+            
+            if (valueMatch) {
+              const value = parseFloat(valueMatch[1]);
+              if (!isNaN(value)) {
+                // Initialize size entry if needed
+                if (!sizeChart[size]) sizeChart[size] = {};
+                
+                // Standardize measurement name
+                const stdMeasurement = standardizeMeasurementName(measurementName);
+                sizeChart[size][stdMeasurement] = value;
+              }
+            }
+          }
+        }
+        
+        // If we found measurements, return the chart
+        if (Object.keys(sizeChart).length > 0) {
+          return sizeChart;
+        }
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[Scraper] Error extracting from tables:', error);
+    return null;
+  }
+}
+
+/**
+ * Extract size chart from grid-like structures
+ */
+async function extractFromGrids(page: Page): Promise<SizeChartData | null> {
+  try {
+    // Find grid-like structures
+    const gridSelectors = [
+      'div[class*="grid"]',
+      'div[class*="row"]',
+      'div[style*="display: grid"]',
+      'div[style*="display:grid"]',
+      'div[class*="size-chart"]',
+      'div[class*="sizeChart"]'
+    ];
+    
+    for (const selector of gridSelectors) {
+      const grids = await page.$$(selector);
+      
+      for (const grid of grids) {
+        // Check if this grid contains size info
+        const gridText = await grid.textContent() || '';
+        
+        const hasSizeIndicators = /size|small|medium|large|xs|s|m|l|xl/i.test(gridText);
+        const hasMeasurementIndicators = /chest|waist|hip|shoulder|length|sleeve|cm|inch|"/i.test(gridText);
+        
+        if (hasSizeIndicators && hasMeasurementIndicators) {
+          // This looks like a size chart grid
+          const sizeChart: SizeChartData = {};
+          
+          // Extract grid content
+          const sizeElements = await grid.$$('div, span');
+          const sizes: string[] = [];
+          
+          for (const element of sizeElements) {
+            const text = await element.textContent() || '';
+            if (/^(xs|s|m|l|xl|xxl|small|medium|large)$/i.test(text.trim())) {
+              sizes.push(text.trim().toUpperCase());
+            }
+          }
+          
+          if (sizes.length === 0) continue;
+          
+          // Initialize size chart
+          for (const size of sizes) {
+            sizeChart[size] = {};
+          }
+          
+          // Look for measurement rows
+          const rows = await grid.$$('div[class*="row"], div > div');
+          
+          for (const row of rows) {
+            const rowText = await row.textContent() || '';
+            const measurementMatch = rowText.match(/([a-z\s]+)[\s:]+(\d+(\.\d+)?)/i);
+            
+            if (measurementMatch) {
+              const measurementName = measurementMatch[1].trim();
+              const value = parseFloat(measurementMatch[2]);
+              
+              if (!isNaN(value) && sizes.length > 0) {
+                // For simplicity, assume first size
+                const size = sizes[0];
+                sizeChart[size][standardizeMeasurementName(measurementName)] = value;
+              }
+            }
+          }
+          
+          if (Object.keys(sizeChart).length > 0 && 
+              Object.values(sizeChart).some(size => Object.keys(size).length > 0)) {
+            return sizeChart;
+          }
+        }
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[Scraper] Error extracting from grids:', error);
+    return null;
+  }
+}
+
+/**
+ * Extract size chart image URL
+ */
+async function extractSizeChartImage(page: Page): Promise<string | null> {
+  try {
+    // Look for images in size chart containers
+    const sizeChartImages = await page.$$('img[src*="size-chart"], img[src*="sizechart"], img[alt*="Size Chart"], img[alt*="size chart"], img[alt*="Size Guide"], div[class*="size-chart"] img, div[class*="sizeChart"] img');
+    
+    for (const img of sizeChartImages) {
+      const src = await img.getAttribute('src');
+      if (src) {
+        return src;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[Scraper] Error extracting size chart image:', error);
+    return null;
+  }
+}
+
+/**
+ * Standardize measurement names
+ */
+function standardizeMeasurementName(name: string): string {
+  const lowerName = name.toLowerCase().trim();
+  
+  // Common measurement name mappings
+  const mappings: { [key: string]: string } = {
+    'body length back': 'length',
+    'body length': 'length',
+    'length': 'length',
+    'shoulder width': 'shoulder',
+    'shoulder': 'shoulder',
+    'body width': 'chest',
+    'chest width': 'chest',
+    'chest': 'chest',
+    'sleeve length (center back)': 'sleeve',
+    'sleeve length': 'sleeve',
+    'sleeve': 'sleeve',
+    'waist': 'waist',
+    'waist width': 'waist',
+    'hip': 'hip',
+    'hips': 'hip',
+    'inseam': 'inseam',
+    'outseam': 'outseam',
+    'thigh': 'thigh',
+    'rise': 'rise',
+    'leg opening': 'leg_opening'
+  };
+  
+  // Check for exact matches or includes
+  for (const [pattern, standardName] of Object.entries(mappings)) {
+    if (lowerName === pattern || lowerName.includes(pattern)) {
+      return standardName;
+    }
+  }
+  
+  // If no match found, return the original name with spaces converted to underscores
+  return lowerName.replace(/\s+/g, '_');
+}

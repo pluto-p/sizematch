@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react"
 import { SizingPopup } from "../components/sizing-popup"
-import type { GarmentInfo } from "../utils/garment-analyzer"
+import type { AnalysisResult } from "../utils/garment-analyzer"
 
 export default function WidgetPage() {
   const [showPopup, setShowPopup] = useState(true)
   const [currentUrl, setCurrentUrl] = useState("")
-  const [garmentInfo, setGarmentInfo] = useState<GarmentInfo | null>(null)
+  const [initialAnalysisResult, setInitialAnalysisResult] = useState<AnalysisResult | undefined>(undefined)
 
   useEffect(() => {
     console.log("[Widget] Page loading...")
@@ -38,9 +38,8 @@ export default function WidgetPage() {
     // Add message listener for parent communication
     const handleMessage = (event: MessageEvent) => {
       console.log("[Widget] Received message:", event.data)
-      // --- NEW: Receive Garment Info from parent ---
       if (event.data.type === "GARMENT_INFO") {
-        setGarmentInfo(event.data.data)
+        setInitialAnalysisResult(event.data.data)
         console.log("[Widget] Received GARMENT_INFO from parent", event.data.data)
       }
     }
@@ -68,13 +67,7 @@ export default function WidgetPage() {
         isOpen={showPopup}
         onClose={handleClose}
         currentUrl={currentUrl}
-        mockAnalysisResult={garmentInfo ? {
-          garment: garmentInfo,
-          sizing: { availableSizes: [] },
-          productId: garmentInfo.productId || "",
-          confidence: 0,
-          status: "incomplete"
-        } : undefined}
+        initialAnalysisResult={initialAnalysisResult}
       />
     </div>
   )
